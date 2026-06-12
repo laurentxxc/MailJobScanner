@@ -1,0 +1,15 @@
+llm:
+  provider: ollama
+  endpoint: http://localhost:11434
+  model: llama3.2
+  options:
+    temperature: 0.1
+    num_predict: 4096
+
+paths:
+  cv: data/cv.md
+  expectations: data/expectations.md
+  db: jobscan.db
+
+email:
+  temp_dir: /tmp/mailjobscan

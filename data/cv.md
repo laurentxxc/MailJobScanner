@@ -1,0 +1,1 @@
+private/LaurentVincent_ProductManager_SolutionArchitect_EN.txt
