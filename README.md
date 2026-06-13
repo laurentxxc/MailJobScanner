@@ -163,6 +163,24 @@ end run
 sqlite3 jobscan.db -header -column "SELECT job_title, company, resume_match_level, expectations_match_level FROM job_proposals;"
 ```
 
+### Dashboard (Streamlit)
+
+Browse, filter, and analyze results in an interactive web dashboard:
+
+```bash
+source .venv/bin/activate
+streamlit run dashboard.py
+```
+
+Opens at `http://localhost:8501` in your browser.
+
+Features:
+- **Date range filter** — last 7/30/90 days or custom period
+- **Match filter** — show only high matches, medium+, or low matches
+- **Color-coded table** — green (High), yellow (Medium), red (Low)
+- **Detail panel** — click any proposal to see full match summaries, URL, salary, and location
+- **CSV export** — download filtered results
+
 ## Workflow Diagram
 
 ```
