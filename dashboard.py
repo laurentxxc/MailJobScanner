@@ -105,7 +105,11 @@ def render_table(df: pd.DataFrame):
     }
     display = df[list(cols.keys())].copy()
     display["_best_label"] = display["_best_label"].map(icon_map).fillna("⚪")
-    display["_parsed_date"] = display["_parsed_date"].dt.strftime("%Y-%m-%d")
+    display["_parsed_date"] = (
+        pd.to_datetime(display["_parsed_date"], errors="coerce")
+        .dt.strftime("%Y-%m-%d")
+        .fillna("")
+    )
 
     selection = st.dataframe(
         display,
