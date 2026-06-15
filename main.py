@@ -67,8 +67,8 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
         title = prop.get("title", "Unknown")
         url = prop.get("url", "")
         company = prop.get("company", "Unknown")
-        salary = prop.get("salary")
-        location = prop.get("location")
+        salary = prop.get("salary", "Unknown")
+        location = prop.get("location", "Unknown")
 
         jd_text = None
         resume_match = None
@@ -110,9 +110,9 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
             salary=salary,
             location=location,
             resume_match_level=resume_match.get("level") if resume_match else None,
-            resume_match_summary=resume_match.get("summary") if resume_match else None,
+            resume_match_summary=resume_match.get("summary") if resume_match else "",
             expectations_match_level=expectations_match.get("level") if expectations_match else None,
-            expectations_match_summary=expectations_match.get("summary") if expectations_match else None,
+            expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
             error=error,
         )
         repo.insert(record)
