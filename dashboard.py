@@ -24,8 +24,8 @@ def load_data(db_path: str) -> pd.DataFrame:
         return df
 
     df["_parsed_date"] = pd.to_datetime(df["email_received_date"], errors="coerce", utc=True)
-    df["_created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
-    fallback = df["_created_at"].fillna(pd.Timestamp.now())
+    df["_created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+    fallback = df["_created_at"].fillna(pd.Timestamp.now(tz="UTC"))
     df["_parsed_date"] = df["_parsed_date"].fillna(fallback)
 
     def best_level(row):
@@ -51,12 +51,12 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         col1, col2 = st.sidebar.columns(2)
         start = col1.date_input("From", datetime.today() - timedelta(days=7))
         end = col2.date_input("To", datetime.today())
-        cutoff_start = pd.Timestamp(start)
-        cutoff_end = pd.Timestamp(end) + timedelta(days=1)
+        cutoff_start = pd.Timestamp(start, tz="UTC")
+        cutoff_end = pd.Timestamp(end, tz="UTC") + timedelta(days=1)
         df = df[(df["_parsed_date"] >= cutoff_start) & (df["_parsed_date"] <= cutoff_end)]
     elif date_filter != "All time":
         days = int(date_filter.split()[1])
-        cutoff = pd.Timestamp.now() - timedelta(days=days)
+        cutoff = pd.Timestamp.now(tz="UTC") - timedelta(days=days)
         df = df[df["_parsed_date"] >= cutoff]
 
     match_filter = st.sidebar.selectbox(
@@ -133,22 +133,35 @@ def render_detail(row: pd.Series):
     r_emoji = emoji_map.get(row["resume_match_level"], "⚪")
     e_emoji = emoji_map.get(row["expectations_match_level"], "⚪")
 
-    st.subheader(f"{row['job_title']} @ {row['company']}")
+    st.subheader(f"[{row['job_title']}]({row['job_url']})")
+    st.write(f"**Company:** {row['company']}")
     st.write(f"**Email:** {row['email_subject']}")
     st.write(f"**From:** {row['email_from']}")
     st.write(f"**Date:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
-    st.write(f"**URL:** [{row['job_url']}]({row['job_url']})")
-    st.write(f"**Salary:** {row.get('salary') or 'N/A'}  |  **Location:** {row.get('location') or 'N/A'}")
+    st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
+    st.write(f"**Location:** {row.get('location') or 'N/A'}")
 
     st.divider()
+
+    def format_bullets(text: str) -> str:
+        print(f"Formatting bullets for text: {text}")
+        if not text or text == "No summary available":
+            return "No summary available"
+        text = text.strip()
+        if "•" in text:
+            return text
+        parts = [s.strip() for s in text.replace("\n", " ").split(". ") if s.strip()]
+        if len(parts) <= 1:
+            return f"- {parts[0]}" if parts else "No summary available"
+        return "\n".join(f"- {p}." for p in parts)
 
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"**Resume Match:** {r_emoji} {row['resume_match_level'] or 'N/A'}")
-        st.caption(row.get("resume_match_summary") or "No summary available")
+        st.markdown(format_bullets(row.get("resume_match_summary", "")))
     with col2:
         st.markdown(f"**Expectations Match:** {e_emoji} {row['expectations_match_level'] or 'N/A'}")
-        st.caption(row.get("expectations_match_summary") or "No summary available")
+        st.markdown(format_bullets(row.get("expectations_match_summary", "")))
 
     if row.get("error"):
         st.warning(f"Error: {row['error']}")
