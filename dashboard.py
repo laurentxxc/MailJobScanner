@@ -157,6 +157,7 @@ def render_table(df: pd.DataFrame):
         selection_mode="single-row",
         width="stretch",
         hide_index=True,
+        key="proposals_table",
     )
 
     if selection.selection.rows:
@@ -173,6 +174,21 @@ def update_notes_in_db(db_path: str, record_id: int, notes: str):
     repo = JobRepository(db_path)
     repo.update_notes(record_id, notes)
     repo.close()
+
+
+def _detail_fragment(record_id: int, db_path: str):
+    conn = sqlite3.connect(db_path)
+    row_df = pd.read_sql(
+        "SELECT * FROM job_proposals WHERE id = ?",
+        conn, params=(record_id,)
+    )
+    conn.close()
+    if row_df.empty:
+        return
+    row = row_df.iloc[0]
+    row["_parsed_date"] = pd.to_datetime(row["email_received_date"], errors="coerce", utc=True)
+    render_detail(row, db_path)
+
 
 def render_detail(row: pd.Series, db_path: str):
     if row is None:
@@ -197,6 +213,7 @@ def render_detail(row: pd.Series, db_path: str):
         new_val = st.session_state.get(f"status_{record_id}")
         if new_val and new_val != current_status:
             update_status_in_db(db_path, record_id, new_val)
+            st.session_state["_selected_id"] = record_id
             st.cache_data.clear()
 
     st.write("**Status:**")
@@ -214,6 +231,7 @@ def render_detail(row: pd.Series, db_path: str):
         new_text = st.session_state.get(f"notes_{record_id}", "")
         if new_text != row.get("notes"):
             update_notes_in_db(db_path, record_id, new_text)
+            st.session_state["_selected_id"] = record_id
             st.cache_data.clear()
 
     st.write("**Notes:**")
@@ -312,9 +330,17 @@ def main():
     st.divider()
     selected_row = render_table(df)
     if selected_row is not None:
+        st.session_state["_selected_id"] = int(selected_row["id"])
         st.divider()
-        render_detail(selected_row, str(db_path))
-
+        _detail_fragment(st.session_state["_selected_id"], str(db_path))
+    elif st.session_state.get("_selected_id") is not None:
+        sid = st.session_state["_selected_id"]
+        match = df[df["id"] == sid]
+        if not match.empty:
+            st.divider()
+            _detail_fragment(sid, str(db_path))
+        else:
+            st.session_state.pop("_selected_id", None)
 
 if __name__ == "__main__":
     main()
