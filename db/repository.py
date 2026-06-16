@@ -35,10 +35,25 @@ class JobRepository:
                 expectations_match_level TEXT,
                 expectations_match_summary TEXT,
                 error TEXT,
+                status TEXT NOT NULL DEFAULT 'new',
+                notes TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        self.migrate()
         self._conn.commit()
+
+    def migrate(self):
+        conn = self.connect()
+        for col in [
+            "status TEXT NOT NULL DEFAULT 'new'",
+            "notes TEXT NOT NULL DEFAULT ''",
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE job_proposals ADD COLUMN {col}")
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
     def insert(self, record: JobProposalRecord) -> int:
         conn = self.connect()
@@ -49,8 +64,8 @@ class JobRepository:
                 job_title, job_url, company, salary, location,
                 resume_match_level, resume_match_summary,
                 expectations_match_level, expectations_match_summary,
-                error, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                error, status, notes, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.email_subject,
@@ -66,11 +81,23 @@ class JobRepository:
                 record.expectations_match_level,
                 record.expectations_match_summary,
                 record.error,
+                record.status,
+                record.notes,
                 record.created_at,
             ),
         )
         conn.commit()
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    def update_status(self, record_id: int, status: str) -> None:
+        conn = self.connect()
+        conn.execute("UPDATE job_proposals SET status = ? WHERE id = ?", (status, record_id))
+        conn.commit()
+
+    def update_notes(self, record_id: int, notes: str) -> None:
+        conn = self.connect()
+        conn.execute("UPDATE job_proposals SET notes = ? WHERE id = ?", (notes, record_id))
+        conn.commit()
 
     def close(self):
         if self._conn is not None:

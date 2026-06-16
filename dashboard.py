@@ -7,6 +7,10 @@ import pandas as pd
 import streamlit as st
 import yaml
 
+from db.repository import JobRepository
+
+STATUS_ORDER = {"new": 0, "applied": 1, "interview": 2, "dismissed": 3}
+
 
 def load_config():
     config_path = Path(__file__).parent / "config.yaml"
@@ -22,6 +26,11 @@ def load_data(db_path: str) -> pd.DataFrame:
 
     if df.empty:
         return df
+
+    if "status" not in df.columns:
+        df["status"] = "new"
+    if "notes" not in df.columns:
+        df["notes"] = ""
 
     df["_parsed_date"] = pd.to_datetime(df["email_received_date"], errors="coerce", utc=True)
     df["_created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
@@ -59,6 +68,15 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         cutoff = pd.Timestamp.now(tz="UTC") - timedelta(days=days)
         df = df[df["_parsed_date"] >= cutoff]
 
+    status_filter = st.sidebar.radio(
+        "Status",
+        ["All", "New", "Applied", "Interview", "Dismissed"],
+        horizontal=True,
+    )
+    if status_filter != "All":
+        status_val = status_filter.lower()
+        df = df[df["status"] == status_val]
+
     match_filter = st.sidebar.selectbox(
         "Match filter",
         ["All matches", "High only", "Medium or higher", "Low only"],
@@ -91,20 +109,22 @@ def render_table(df: pd.DataFrame):
         st.info("No proposals match the selected filters.")
         return None
 
-    icon_map = {"High": "🟢", "Medium": "🟠", "Low": "🔴"}
+    match_icon_map = {"High": "🟢", "Medium": "🟠", "Low": "🔴"}
 
     cols = {
         "job_title": "Job Title",
         "company": "Company",
         "location": "Location",
         "salary": "Salary",
+        "status": "Status",
         "_best_label": "Best Match",
         "resume_match_level": "Resume",
         "expectations_match_level": "Expect.",
         "_parsed_date": "Date",
     }
     display = df[list(cols.keys())].copy()
-    display["_best_label"] = display["_best_label"].map(icon_map).fillna("⚪")
+    display["status"] = display["status"].fillna("new").str.capitalize()
+    display["_best_label"] = display["_best_label"].map(match_icon_map).fillna("⚪")
     display["_parsed_date"] = (
         pd.to_datetime(display["_parsed_date"], errors="coerce")
         .dt.strftime("%Y-%m-%d")
@@ -125,7 +145,17 @@ def render_table(df: pd.DataFrame):
     return None
 
 
-def render_detail(row: pd.Series):
+def update_status_in_db(db_path: str, record_id: int, status: str):
+    repo = JobRepository(db_path)
+    repo.update_status(record_id, status)
+    repo.close()
+
+def update_notes_in_db(db_path: str, record_id: int, notes: str):
+    repo = JobRepository(db_path)
+    repo.update_notes(record_id, notes)
+    repo.close()
+
+def render_detail(row: pd.Series, db_path: str):
     if row is None:
         return
 
@@ -141,10 +171,46 @@ def render_detail(row: pd.Series):
     st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
     st.write(f"**Location:** {row.get('location') or 'N/A'}")
 
+    current_status = row.get("status") or "new"
+    record_id = int(row["id"])
+
+    def _on_status_change():
+        new_val = st.session_state.get(f"status_{record_id}")
+        if new_val and new_val != current_status:
+            update_status_in_db(db_path, record_id, new_val)
+            st.cache_data.clear()
+
+    st.write("**Status:**")
+    st.selectbox(
+        label="status",
+        label_visibility="collapsed",
+        options=["new", "applied", "interview", "dismissed"],
+        index=["new", "applied", "interview", "dismissed"].index(current_status) if current_status in ["new", "applied", "interview", "dismissed"] else 0,
+        format_func=lambda x: f"{x.capitalize()}",
+        key=f"status_{record_id}",
+        on_change=_on_status_change,
+    )
+
+    def _on_notes_change():
+        new_text = st.session_state.get(f"notes_{record_id}", "")
+        if new_text != row.get("notes"):
+            update_notes_in_db(db_path, record_id, new_text)
+            st.cache_data.clear()
+
+    st.write("**Notes:**")
+    st.text_area(
+        label="notes",
+        label_visibility="collapsed",
+        value=row.get("notes") or "",
+        height=100,
+        key=f"notes_{record_id}",
+        on_change=_on_notes_change,
+    )
+
     st.divider()
 
     def format_bullets(text: str) -> str:
-        print(f"Formatting bullets for text: {text}")
+        #print(f"Formatting bullets for text: {text}")
         if not text or text == "No summary available":
             return "No summary available"
         text = text.strip()
@@ -228,7 +294,7 @@ def main():
     selected_row = render_table(df)
     if selected_row is not None:
         st.divider()
-        render_detail(selected_row)
+        render_detail(selected_row, str(db_path))
 
 
 if __name__ == "__main__":

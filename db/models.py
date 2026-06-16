@@ -18,5 +18,7 @@ class JobProposalRecord:
     expectations_match_level: Optional[str] = None
     expectations_match_summary: Optional[str] = None
     error: Optional[str] = None
+    notes: str = ""
+    status: str = "new"
     id: Optional[int] = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
