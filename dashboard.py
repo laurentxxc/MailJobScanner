@@ -9,7 +9,11 @@ import yaml
 
 from db.repository import JobRepository
 
-STATUS_ORDER = {"new": 0, "applied": 1, "interview": 2, "dismissed": 3}
+# helper function
+def _strikethrough(val):
+    if not isinstance(val, str) or not val:
+        return val
+    return "\u0336".join(val) + "\u0336"
 
 
 def load_config():
@@ -131,8 +135,23 @@ def render_table(df: pd.DataFrame):
         .fillna("")
     )
 
+    def _style_dismissed(row):
+        if row["status"] == "Dismissed":
+            return [
+                "color: #999; "
+                for _ in range(len(row))
+            ]
+        return [""] * len(row)
+
+    dismissed_mask = display["status"] == "Dismissed"
+    for col in display.columns:
+        if col != "status":
+            display.loc[dismissed_mask, col] = display.loc[dismissed_mask, col].apply(_strikethrough)
+
+    styled = display.style.apply(_style_dismissed, axis=1)
+
     selection = st.dataframe(
-        display,
+        styled,
         column_config={k: v for k, v in cols.items()},
         on_select="rerun",
         selection_mode="single-row",
