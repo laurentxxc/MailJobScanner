@@ -1,0 +1,16 @@
+llm:
+  provider: grok
+  endpoint: https://api.x.ai/v1
+  model: grok-3-latest
+  api_key: ${XAI_API_KEY}
+  options:
+    temperature: 0.1
+    num_predict: 4096
+
+paths:
+  cv: data/cv.md
+  expectations: data/expectations.md
+  db: jobscan.db
+
+email:
+  temp_dir: /tmp/mailjobscan

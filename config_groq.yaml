@@ -1,0 +1,16 @@
+llm:
+  provider: groq
+  endpoint: https://api.groq.com/openai/v1
+  model: llama-3.1-8b-instant
+  api_key: ${GROQ_API_KEY}
+  options:
+    temperature: 0.1
+    num_predict: 4096
+
+paths:
+  cv: data/cv.md
+  expectations: data/expectations.md
+  db: jobscan.db
+
+email:
+  temp_dir: /tmp/mailjobscan
