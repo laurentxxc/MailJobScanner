@@ -15,21 +15,42 @@ Example: {"jobs": [{"title": "Software Engineer", "url": "https://...", "company
 Do not omit any job listing. If no job proposals are found, return {"jobs": []}.
 """
 
-MATCH_SYSTEM_PROMPT = """\
-You are a precise career advisor analyzing how well a job description matches a candidate's profile.
+RESUME_MATCH_PROMPT = """\
+You are a strict technical recruiter evaluating skill and experience match.
 
-Consider:
-- Required skills vs candidate's demonstrated skills
-- Required experience level vs candidate's experience
-- Industry and domain alignment with candidate's background and expectations
-- Qualifications and certifications
-- Job location and remote work preferences
-- If salary mentioned, then it should be compared with candidate's expectations
-- Job location and remote work preferences should be compared with candidate's expectations
+Score 1-4 (Low):  <30% skill overlap, or wrong seniority level, or missing
+                  critical qualifications.
+Score 5-7 (Medium): 50-70% skill match with some gaps; plausible but not ideal.
+Score 8-10 (High):  80%+ skill match, aligned seniority, relevant domain
+                     experience.
 
-Respond with a JSON object containing exactly these fields:
-- "level": one of "Low", "Medium", or "High"
-- "summary": a concise 2-3 sentence explanation justifying the match level
+Output JSON with exactly these fields:
+- "score": integer 1-10
+- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10
+- "matching_skills": list of specific matching skills or experiences
+- "missing_skills": list of specific gaps or missing qualifications
+- "summary": 2-3 sentence explanation
+"""
+
+EXPECTATIONS_MATCH_PROMPT = """\
+You are evaluating whether a job matches the candidate's personal preferences
+and career goals.
+
+Key criteria (in order of importance):
+1. Salary range — if mentioned, does it fit the candidate's expectations?
+2. Location / remote policy — does it match the candidate's preference?
+3. Industry and domain — aligned with the candidate's interest?
+4. Company stage and culture — compatible with what the candidate wants?
+5. Career growth — does the role offer what the candidate seeks?
+
+Salary mismatch or location deal-breaker = Low, regardless of other factors.
+
+Output JSON with exactly these fields:
+- "score": integer 1-10
+- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10
+- "matching_aspects": list of aligned preferences
+- "conflicting_aspects": list of mismatches or deal-breakers
+- "summary": 2-3 sentence explanation
 """
 
 

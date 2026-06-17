@@ -7,7 +7,8 @@ import requests
 
 from analyzer.prompts import (
     EXTRACTION_SYSTEM_PROMPT,
-    MATCH_SYSTEM_PROMPT,
+    RESUME_MATCH_PROMPT,
+    EXPECTATIONS_MATCH_PROMPT,
     build_extraction_user_prompt,
     build_match_user_prompt,
 )
@@ -73,8 +74,8 @@ class LlmClient:
 
     def match_resume(self, job_description: str) -> dict[str, Any]:
         user = build_match_user_prompt(job_description, "resume", self._cv or "")
-        return self._chat(MATCH_SYSTEM_PROMPT, user)
+        return self._chat(RESUME_MATCH_PROMPT, user)
 
     def match_expectations(self, job_description: str) -> dict[str, Any]:
         user = build_match_user_prompt(job_description, "expectations", self._expectations or "")
-        return self._chat(MATCH_SYSTEM_PROMPT, user)
+        return self._chat(EXPECTATIONS_MATCH_PROMPT, user)
