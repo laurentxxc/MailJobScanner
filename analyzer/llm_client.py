@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -78,6 +79,7 @@ class LlmClient:
             }
             resp = requests.post(f"{self.endpoint}/api/chat", json=payload, timeout=120)
         else:
+            time.sleep(4)
             headers = {"Content-Type": "application/json"}
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
@@ -89,12 +91,19 @@ class LlmClient:
                 "max_tokens": self.options.get("num_predict", 4096),
                 "stream": False,
             }
-            resp = requests.post(
-                f"{self.endpoint}/chat/completions",
-                json=payload,
-                headers=headers,
-                timeout=120,
-            )
+            for attempt in range(2):
+                resp = requests.post(
+                    f"{self.endpoint}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                    timeout=120,
+                )
+                if resp.status_code == 429 and attempt == 0:
+                    logger.warning("Rate limited, retrying after 5s...")
+                    time.sleep(5)
+                    continue
+                resp.raise_for_status()
+                break
 
         resp.raise_for_status()
         body = resp.json()

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -51,6 +52,15 @@ def fetch_job_description(url: str) -> str | None:
         logger.warning("Failed to fetch URL %s: %s", url, e)
         return None
 
+_LOGIN_SIGNALS = ["sign in", "log in", "create account", "forgot password", "password"]
+
+def is_login_page(text: str, url: str = "") -> bool:
+    lower = text.lower()
+    count = sum(1 for s in _LOGIN_SIGNALS if s in lower)
+    if "linkedin.com" in url.lower() and "sign in" in lower:
+        return True
+    return count >= 3
+
 def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository) -> dict:
     email_data = parse_eml(filepath)
     logger.info("Processing: %s", email_data["subject"])
@@ -77,6 +87,10 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
 
         if url:
             jd_text = fetch_job_description(url)
+            if jd_text and is_login_page(jd_text, url):
+                logger.info("Login page detected for '%s' at %s", title, url)
+                error = f"Login page detected at {url}"
+                jd_text = None
             if jd_text:
                 try:
                     resume_match = llm.match_resume(jd_text)
