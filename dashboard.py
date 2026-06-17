@@ -36,8 +36,8 @@ def load_data(db_path: str) -> pd.DataFrame:
     if "notes" not in df.columns:
         df["notes"] = ""
 
-    df["_parsed_date"] = pd.to_datetime(df["email_received_date"], errors="coerce", utc=True)
-    df["_created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+    df["_parsed_date"] = pd.to_datetime(df["email_received_date"], errors="coerce", utc=True, format="mixed")
+    df["_created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True, format="mixed")
     fallback = df["_created_at"].fillna(pd.Timestamp.now(tz="UTC"))
     df["_parsed_date"] = df["_parsed_date"].fillna(fallback)
 
