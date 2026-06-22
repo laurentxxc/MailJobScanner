@@ -1,3 +1,5 @@
+import re
+
 EXTRACTION_SYSTEM_PROMPT = """\
 You are an expert at parsing job alert emails.
 Extract ALL job proposals from the email content below.
@@ -13,6 +15,10 @@ Each object must have exactly these fields:
 Example: {"jobs": [{"title": "Software Engineer", "url": "https://...", "company": "Acme", "salary": null, "location": "Remote"}]}
 
 Do not omit any job listing. If no job proposals are found, return {"jobs": []}.
+
+Some URLs in the email are replaced with placeholder URLs like
+http://placeholder/track/1. Use the exact placeholder URL as the "url"
+field — do not modify it or prepend anything.
 """
 
 RESUME_MATCH_PROMPT = """\
@@ -52,6 +58,27 @@ Output JSON with exactly these fields:
 - "conflicting_aspects": list of mismatches or deal-breakers
 - "summary": 2-3 sentence explanation
 """
+
+
+def shorten_urls(text: str) -> tuple[str, dict[str, str]]:
+    url_map = {}
+    counter = 0
+    def _replacer(m: re.Match) -> str:
+        nonlocal counter
+        counter += 1
+        key = f"http://placeholder/track/{counter}"
+        url_map[key] = m.group(0)
+        return key
+    shortened = re.sub(r'https?://\S+', _replacer, text)
+    return shortened, url_map
+
+
+def restore_urls(jobs: list[dict], url_map: dict[str, str]) -> list[dict]:
+    for job in jobs:
+        url = job.get("url", "")
+        if url in url_map:
+            job["url"] = url_map[url]
+    return jobs
 
 
 def build_extraction_user_prompt(email_body: str) -> str:

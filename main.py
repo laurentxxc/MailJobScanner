@@ -55,6 +55,8 @@ def fetch_job_description(url: str) -> str | None:
 _LOGIN_SIGNALS = ["sign in", "log in", "create account", "forgot password", "password"]
 
 def is_login_page(text: str, url: str = "") -> bool:
+    if len(text) < 300:
+        return True
     lower = text.lower()
     count = sum(1 for s in _LOGIN_SIGNALS if s in lower)
     if "linkedin.com" in url.lower() and "sign in" in lower:

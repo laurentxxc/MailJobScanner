@@ -13,6 +13,8 @@ from analyzer.prompts import (
     EXPECTATIONS_MATCH_PROMPT,
     build_extraction_user_prompt,
     build_match_user_prompt,
+    restore_urls,
+    shorten_urls,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,18 +81,21 @@ class LlmClient:
             }
             resp = requests.post(f"{self.endpoint}/api/chat", json=payload, timeout=120)
         else:
-            time.sleep(4)
+            if self.api_key:
+                time.sleep(4)
             headers = {"Content-Type": "application/json"}
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
             payload = {
                 "model": self.model,
                 "messages": messages,
-                "response_format": {"type": "json_object"},
                 "temperature": self.options.get("temperature", 0.1),
                 "max_tokens": self.options.get("num_predict", 4096),
                 "stream": False,
             }
+            if any(domain in self.endpoint for domain in ("groq.com", "openai.com","api.x.ai")):
+                payload["response_format"] = {"type": "json_object"}
+
             for attempt in range(2):
                 resp = requests.post(
                     f"{self.endpoint}/chat/completions",
@@ -113,19 +118,34 @@ class LlmClient:
         else:
             raw = body["choices"][0]["message"]["content"]
 
-        return json.loads(raw)
-
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # Try extracting JSON from markdown code fences
+            import re
+            match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', raw, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+            raise
+        
     def extract_job_proposals(self, email_body: str) -> list[dict]:
-        user = build_extraction_user_prompt(email_body)
+        shortened, url_map = shorten_urls(email_body)
+        user = build_extraction_user_prompt(shortened)
         try:
             result = self._chat(EXTRACTION_SYSTEM_PROMPT, user)
+            jobs = []
             if isinstance(result, dict):
                 for key in ("jobs", "proposals", "results", "items"):
                     if key in result and isinstance(result[key], list):
-                        return result[key]
-            if isinstance(result, list):
-                return result
-            return [result] if isinstance(result, dict) else []
+                        jobs = result[key]
+                        break
+            elif isinstance(result, list):
+                jobs = result
+            else:
+                jobs = [result] if isinstance(result, dict) else []
+            if url_map:
+                jobs = restore_urls(jobs, url_map)
+            return jobs
         except Exception as e:
             logger.error("Failed to extract job proposals: %s", e)
             return []

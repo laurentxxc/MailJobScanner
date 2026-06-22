@@ -1,0 +1,16 @@
+llm:
+  provider: lmstudio
+  endpoint: http://localhost:1234/v1
+  model: qwen/qwen3-4b-2507
+  api_key: ""
+  options:
+    temperature: 0.1
+    num_predict: 4096
+
+paths:
+  cv: data/cv.md
+  expectations: data/expectations.md
+  db: jobscan.db
+
+email:
+  temp_dir: /tmp/mailjobscan
