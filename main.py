@@ -135,7 +135,7 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
 
         rl = (resume_match or {}).get("level", "")
         el = (expectations_match or {}).get("level", "")
-        if rl == "High" or el == "High":
+        if rl == "High" and el == "High":
             has_high_match = True
 
     return {
