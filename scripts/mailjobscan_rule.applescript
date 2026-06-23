@@ -25,6 +25,7 @@ using terms from application "Mail"
 					if isFlagged is "true" then
 						set flag index of msg to 3
 					end if
+					set read status of msg to true
 				end try
 			end repeat
 

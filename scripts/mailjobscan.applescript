@@ -39,6 +39,7 @@ on run
 				if isFlagged is "true" then
 					set flag index of msg to 3 -- 0=red, 1=orange, 2=yellow, 3= green, 4=light blue, 5=dark blue, 6=grey
 				end if
+				set read status of msg to true
 				set processedCount to processedCount + 1
 			on error errMsg
 				display dialog "Error processing message: " & errMsg
