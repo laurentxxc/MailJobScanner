@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import sys
+import urllib.parse
 from pathlib import Path
 
 import yaml
@@ -32,25 +33,41 @@ def load_config() -> dict:
 
 
 def fetch_job_description(url: str) -> str | None:
+    # Normalize LinkedIn tracking URLs to clean job view URLs.
+    # /comm/jobs/view/ tracking links redirect to a hard login wall that even
+    # Jina can't bypass, while /jobs/view/ renders content behind the sign-in.
+    normalized = url
+    parsed = urllib.parse.urlparse(url)
+    if "linkedin.com" in parsed.netloc and "/comm/jobs/view/" in parsed.path:
+        clean_path = parsed.path.replace("/comm/jobs/view/", "/jobs/view/")
+        normalized = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
+        if normalized != url:
+            logger.info("Normalized LinkedIn tracking URL for fetch: %s", normalized)
+
+    # First attempt: direct fetch via trafilatura + requests/BeautifulSoup
+    text = None
     try:
-        downloaded = trafilatura.fetch_url(url)
+        downloaded = trafilatura.fetch_url(normalized)
         if downloaded:
             text = trafilatura.extract(downloaded)
-            if text:
-                return text
-        resp = requests.get(
-            url,
-            timeout=15,
-            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"},
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "lxml")
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
-            tag.decompose()
-        return soup.get_text(separator="\n", strip=True)
+        if not text:
+            resp = requests.get(
+                normalized,
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"},
+            )
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "lxml")
+            for tag in soup(["script", "style", "nav", "footer", "header"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n", strip=True)
     except Exception as e:
         logger.warning("Failed to fetch URL %s: %s", url, e)
-        return None
+
+    if text and not is_login_page(text, url):
+        return text
+
+    return text
 
 _LOGIN_SIGNALS = ["sign in", "log in", "create account", "forgot password", "password"]
 
