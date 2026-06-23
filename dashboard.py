@@ -7,13 +7,15 @@ import pandas as pd
 import streamlit as st
 import yaml
 
+from analyzer.llm_client import LlmClient
 from db.repository import JobRepository
+from main import refetch_single_job
 
 # helper function
 def _strikethrough(val):
-    if not isinstance(val, str) or not val:
-        return val
-    return "\u0336".join(val) + "\u0336"
+    if isinstance(val, str) and val:
+        return "\u0336".join(val) + "\u0336"
+    return ""
 
 
 def load_config():
@@ -265,6 +267,32 @@ def render_detail(row: pd.Series, db_path: str):
     with col2:
         st.markdown(f"**Expectations Match:** {e_emoji} {row['expectations_match_level'] or 'N/A'}")
         st.markdown(format_bullets(row.get("expectations_match_summary", "")))
+
+    st.divider()
+    record_id = int(row["id"])
+    job_url = row.get("job_url", "")
+    refetch_key = f"refetch_{record_id}"
+
+    if st.session_state.get(refetch_key):
+        with st.spinner("Re-fetching job description and re-analyzing..."):
+            config = load_config()
+            llm = LlmClient(config)
+            result = refetch_single_job(job_url, llm)
+            repo = JobRepository(db_path)
+            repo.update_match_results(record_id, result)
+            repo.close()
+            st.session_state[refetch_key] = False
+            st.cache_data.clear()
+            st.rerun()
+
+    st.button(
+        "🔄 Re-fetch & re-analyze",
+        key=f"refetch_btn_{record_id}",
+        disabled=st.session_state.get(refetch_key, False),
+        on_click=lambda: st.session_state.update({refetch_key: True}),
+        type="secondary",
+        use_container_width=True,
+    )
 
     if row.get("error"):
         st.warning(f"Error: {row['error']}")

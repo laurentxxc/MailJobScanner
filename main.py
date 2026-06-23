@@ -63,6 +63,33 @@ def is_login_page(text: str, url: str = "") -> bool:
         return True
     return count >= 3
 
+def refetch_single_job(url: str, llm: LlmClient) -> dict:
+    jd_text = fetch_job_description(url) if url else None
+    if not jd_text:
+        return {"error": f"Could not fetch job description from {url}" if url else "No URL",
+                "resume_match_level": None, "resume_match_summary": "",
+                "expectations_match_level": None, "expectations_match_summary": ""}
+    if is_login_page(jd_text, url):
+        return {"error": f"Login page detected at {url}",
+                "resume_match_level": None, "resume_match_summary": "",
+                "expectations_match_level": None, "expectations_match_summary": ""}
+    resume_match = expectations_match = None
+    try:
+        resume_match = llm.match_resume(jd_text)
+    except Exception as e:
+        resume_match = {"level": "Error", "summary": str(e)}
+    try:
+        expectations_match = llm.match_expectations(jd_text)
+    except Exception as e:
+        expectations_match = {"level": "Error", "summary": str(e)}
+    return {
+        "error": None,
+        "resume_match_level": resume_match.get("level") if resume_match else None,
+        "resume_match_summary": resume_match.get("summary", "") if resume_match else "",
+        "expectations_match_level": expectations_match.get("level") if expectations_match else None,
+        "expectations_match_summary": expectations_match.get("summary", "") if expectations_match else "",
+    }
+
 def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository) -> dict:
     email_data = parse_eml(filepath)
     logger.info("Processing: %s", email_data["subject"])

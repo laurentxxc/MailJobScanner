@@ -99,6 +99,26 @@ class JobRepository:
         conn.execute("UPDATE job_proposals SET notes = ? WHERE id = ?", (notes, record_id))
         conn.commit()
 
+    def update_match_results(self, record_id: int, results: dict) -> None:
+        self.connect()
+        self._conn.execute("""
+            UPDATE job_proposals SET
+                resume_match_level = ?,
+                resume_match_summary = ?,
+                expectations_match_level = ?,
+                expectations_match_summary = ?,
+                error = ?
+            WHERE id = ?
+        """, (
+            results.get("resume_match_level"),
+            results.get("resume_match_summary"),
+            results.get("expectations_match_level"),
+            results.get("expectations_match_summary"),
+            results.get("error"),
+            record_id,
+        ))
+        self._conn.commit()
+
     def close(self):
         if self._conn is not None:
             self._conn.close()
