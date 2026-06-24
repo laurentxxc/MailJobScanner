@@ -22,13 +22,19 @@ field — do not modify it or prepend anything.
 """
 
 RESUME_MATCH_PROMPT = """\
-You are a strict technical recruiter evaluating skill and experience match.
+You are a strict technical recruiter evaluating skills and experience match. The evaluation is based in the context of the job description and the candidate's resume. 
 
-Score 1-4 (Low):  <30% skill overlap, or wrong seniority level, or missing
-                  critical qualifications.
-Score 5-7 (Medium): 50-70% skill match with some gaps; plausible but not ideal.
-Score 8-10 (High):  80%+ skill match, aligned seniority, relevant domain
-                     experience.
+Score 1-4 (Low): 
+- there is less than 30% of skill overlap
+- the seniority level is wrong
+- there is missing critical experience or qualifications.
+Score 5-7 (Medium): 
+- 50-70% skill match with some gaps
+- plausible but not ideal.
+Score 8-10 (High): 
+- 80%+ skill match
+- the required seniority is aligned
+- the candidate has relevant domain experience.
 
 Output JSON with exactly these fields:
 - "score": integer 1-10
