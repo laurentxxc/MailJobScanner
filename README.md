@@ -232,6 +232,7 @@ paths:
   cv: data/cv.md
   expectations: data/expectations.md
   db: jobscan.db
+  linkedin_cookies: data/private/linkedin_cookies.json         # required for fetching job on LinkedIn (see Extract LinkedIn cookies)
 ```
 
 ## Next Steps
@@ -257,6 +258,34 @@ Then add an `OpenAIClient` subclass that implements the same `extract_job_propos
 ### Scheduled scanning
 
 Convert the manual AppleScript trigger to run periodically via `launchd` or `cron` by polling a Mail mailbox folder via IMAP directly (bypassing Mail.app).
+
+### Extract LinkedIn Cookies
+
+LinkedIn requires a logged-in session to view job pages. Configure your browser session cookies so the fetcher can access job descriptions behind LinkedIn's sign-in wall.
+
+1. **Open Safari** and log into [linkedin.com](https://www.linkedin.com)
+2. **Enable Developer Tools**: Safari → Settings → Advanced → check *"Show Develop menu in menu bar"*
+3. **Open Web Inspector**: Develop → Show Web Inspector (or `⌥⌘I`)
+4. **Go to the Storage tab** → expand *Cookies* → select `www.linkedin.com`
+5. Find these two cookies and copy their values:
+
+   | Cookie | What to look for |
+   |--------|------------------|
+   | `li_at` | Long base64 string (300+ chars) — the OAuth2 session token |
+   | `JSESSIONID` | Short string like `ajax:123456789` — the CSRF token |
+
+6. **Edit `data/private/linkedin_cookies.json`** (already gitignored):
+
+   ```json
+   {
+       "li_at": "AQEFAHIBAAAA...",
+       "JSESSIONID": "ajax:123456789"
+   }
+   ```
+
+7. **Verify** by running the dashboard and clicking *Re-fetch & re-analyze* on any LinkedIn proposal — the error should clear and match results should appear.
+
+> **Note:** If `JSESSIONID` doesn't appear in Safari's Storage tab, try first with only `li_at` — it may be sufficient for GET requests. Cookies expire approximately once per year (or when you log out); update the file when they do.
 
 ## Troubleshooting
 

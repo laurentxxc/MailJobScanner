@@ -11,6 +11,7 @@ paths:
   cv: data/cv.md
   expectations: data/expectations.md
   db: jobscan.db
+  linkedin_cookies: data/private/linkedin_cookies.json
 
 email:
   temp_dir: /tmp/mailjobscan

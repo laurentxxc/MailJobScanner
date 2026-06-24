@@ -32,10 +32,25 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
+def _load_linkedin_cookies() -> dict:
+    config = load_config()
+    cookie_rel = config.get("paths", {}).get("linkedin_cookies", "data/private/linkedin_cookies.json")
+    cookie_path = Path(__file__).parent / cookie_rel
+    if not cookie_path.exists():
+        return {}
+    try:
+        with open(cookie_path, "r") as f:
+            data = json.load(f)
+        cookies = {k: v for k, v in data.items() if isinstance(v, str) and v.strip()}
+        return cookies
+    except Exception as e:
+        logger.warning("Failed to load LinkedIn cookies: %s", e)
+        return {}
+
 def fetch_job_description(url: str) -> str | None:
     # Normalize LinkedIn tracking URLs to clean job view URLs.
-    # /comm/jobs/view/ tracking links redirect to a hard login wall that even
-    # Jina can't bypass, while /jobs/view/ renders content behind the sign-in.
+    # /comm/jobs/view/ tracking links redirect to a hard sign-in wall,
+    # while /jobs/view/ renders content behind the sign-in.
     normalized = url
     parsed = urllib.parse.urlparse(url)
     if "linkedin.com" in parsed.netloc and "/comm/jobs/view/" in parsed.path:
@@ -44,17 +59,27 @@ def fetch_job_description(url: str) -> str | None:
         if normalized != url:
             logger.info("Normalized LinkedIn tracking URL for fetch: %s", normalized)
 
-    # First attempt: direct fetch via trafilatura + requests/BeautifulSoup
+    # Load LinkedIn session cookies (li_at + JSESSIONID) for authenticated access
+    # Export from Safari Developer Tools → Storage → Cookies → www.linkedin.com
+    cookies = None
+    if "linkedin.com" in parsed.netloc:
+        cookies = _load_linkedin_cookies()
+        if cookies:
+            logger.info("Using LinkedIn session cookies for authenticated fetch")
+
+    # Skip trafilatura for cookie-authenticated requests (it doesn't support cookies)
     text = None
     try:
-        downloaded = trafilatura.fetch_url(normalized)
-        if downloaded:
-            text = trafilatura.extract(downloaded)
+        if not cookies:
+            downloaded = trafilatura.fetch_url(normalized)
+            if downloaded:
+                text = trafilatura.extract(downloaded)
         if not text:
             resp = requests.get(
                 normalized,
                 timeout=15,
                 headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"},
+                cookies=cookies or None,
             )
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "lxml")
