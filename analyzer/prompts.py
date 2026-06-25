@@ -83,7 +83,7 @@ def restore_urls(jobs: list[dict], url_map: dict[str, str]) -> list[dict]:
     for job in jobs:
         url = job.get("url", "")
         if url in url_map:
-            job["url"] = url_map[url]
+            job["url"] = url_map[url].rstrip(")>]\"")
     return jobs
 
 
