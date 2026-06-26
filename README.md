@@ -181,6 +181,23 @@ Features:
 - **Detail panel** — click any proposal to see full match summaries, URL, salary, and location
 - **CSV export** — download filtered results
 
+#### macOS: MailJobScan.command
+
+Double-click **MailJobScan.command** in the project folder to launch the dashboard:
+
+- Opens a Terminal window showing Streamlit logs in real time
+- Browser opens automatically at `http://localhost:8501`
+- Close the Terminal window (or Ctrl+C) to stop the server cleanly
+- Launcher tracks the Streamlit PID in `.dashboard.pid` — accidental duplicates are killed first
+
+The custom icon is applied automatically by `install.sh` (requires `fileicon`, installed via Homebrew if missing).
+
+```bash
+bash scripts/install.sh
+```
+
+> **Tip:** Drag `MailJobScan.command` to your Dock for one-click access.
+
 ## Workflow Diagram
 
 ```
