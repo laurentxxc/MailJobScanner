@@ -185,6 +185,14 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
         else:
             error = "No URL provided for this proposal"
 
+        notes = ""
+        dup_status = None
+        dup = repo.find_last_duplicate(company, title)
+        if dup:
+            dup_id, dup_status, dup_created_at = dup
+            notes = f"duplicate of {dup_id} (created at {dup_created_at})"
+            logger.info("Duplicate of record %d for '%s' at %s", dup_id, title, company)
+
         record = JobProposalRecord(
             email_subject=email_data["subject"],
             email_from=email_data["from"],
@@ -199,6 +207,8 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
             expectations_match_level=expectations_match.get("level") if expectations_match else None,
             expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
             error=error,
+            notes=notes,
+            status=dup_status or "new",
         )
         repo.insert(record)
 

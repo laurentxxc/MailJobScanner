@@ -89,6 +89,14 @@ class JobRepository:
         conn.commit()
         return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
+    def find_last_duplicate(self, company: str, job_title: str) -> tuple[int, str, str] | None:
+        self.connect()
+        row = self._conn.execute(
+            "SELECT id, status, created_at FROM job_proposals WHERE company = ? AND job_title = ? ORDER BY created_at DESC LIMIT 1",
+            (company, job_title),
+        ).fetchone()
+        return (row["id"], row["status"], row["created_at"]) if row else None
+
     def update_status(self, record_id: int, status: str) -> None:
         conn = self.connect()
         conn.execute("UPDATE job_proposals SET status = ? WHERE id = ?", (status, record_id))
