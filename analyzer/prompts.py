@@ -18,7 +18,7 @@ Do not omit any job listing. If no job proposals are found, return {"jobs": []}.
 
 Some URLs in the email are replaced with placeholder URLs like
 http://placeholder/track/1. Use the exact placeholder URL as the "url"
-field — do not modify it or prepend anything.
+field — do not add any extra text before or after it.
 """
 
 RESUME_MATCH_PROMPT = """\
@@ -84,6 +84,10 @@ def restore_urls(jobs: list[dict], url_map: dict[str, str]) -> list[dict]:
         url = job.get("url", "")
         if url in url_map:
             job["url"] = url_map[url].rstrip(")>]\"")
+        else:
+            match = re.match(r'(http://placeholder/track/\d+)', url)
+            if match and match.group(1) in url_map:
+                job["url"] = url_map[match.group(1)].rstrip(")>]\"")
     return jobs
 
 
