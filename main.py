@@ -139,6 +139,10 @@ def refetch_single_job(url: str, llm: LlmClient) -> dict:
         "expectations_match_summary": expectations_match.get("summary", "") if expectations_match else "",
         "job_responsibilities_summary": job_summary.get("responsibilities", "") if job_summary else "",
         "job_requirements_summary": job_summary.get("requirements", "") if job_summary else "",
+        "title": job_summary.get("title", "") if job_summary else "",
+        "company": job_summary.get("company", "") if job_summary else "",
+        "salary": job_summary.get("salary", "") if job_summary else "",
+        "location": job_summary.get("location", "") if job_summary else "",
     }
 
 def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository) -> dict:
@@ -196,6 +200,17 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                     logger.info("Job summary for '%s': responsibilities extracted", title)
                 except Exception as e:
                     logger.warning("Job summary failed for '%s': %s", title, e)
+
+                if job_summary:
+                    if job_summary.get("title") and job_summary["title"] != title:
+                        logger.info("Title corrected: '%s' → '%s'", title, job_summary["title"])
+                        title = job_summary["title"]
+                    if job_summary.get("company"):
+                        company = job_summary["company"]
+                    if job_summary.get("salary"):
+                        salary = job_summary["salary"]
+                    if job_summary.get("location"):
+                        location = job_summary["location"]
             else:
                 error = f"Could not fetch job description from {url}"
         else:

@@ -116,6 +116,10 @@ class JobRepository:
 
     def update_match_results(self, record_id: int, results: dict) -> None:
         self.connect()
+        title = results.get("title") if "title" in results else None
+        company = results.get("company") if "company" in results else None
+        salary = results.get("salary") if "salary" in results else None
+        location = results.get("location") if "location" in results else None
         self._conn.execute("""
             UPDATE job_proposals SET
                 resume_match_level = ?,
@@ -124,6 +128,10 @@ class JobRepository:
                 expectations_match_summary = ?,
                 job_responsibilities_summary = ?,
                 job_requirements_summary = ?,
+                job_title = COALESCE(?, job_title),
+                company = COALESCE(?, company),
+                salary = COALESCE(?, salary),
+                location = COALESCE(?, location),
                 error = ?
             WHERE id = ?
         """, (
@@ -133,6 +141,10 @@ class JobRepository:
             results.get("expectations_match_summary"),
             results.get("job_responsibilities_summary", ""),
             results.get("job_requirements_summary", ""),
+            title,
+            company,
+            salary,
+            location,
             results.get("error"),
             record_id,
         ))

@@ -108,12 +108,21 @@ def build_match_user_prompt(job_description: str, doc_type: str, candidate_text:
 JOB_SUMMARY_PROMPT = """\
 You are extracting key details from a job description.
 
-Summarize the following two sections concisely (2-3 sentences each):
+Extract the following information:
+1. Title — the exact job title
+2. Company — the company offering the job
+3. Salary — salary information if mentioned, otherwise null
+4. Location — job location, "Remote" if remote-first, or null
 
-1. Responsibilities — what the role involves day-to-day
-2. Requirements — qualifications, skills, and experience needed
+Then summarize concisely (2-3 sentences each):
+5. Responsibilities — what the role involves day-to-day
+6. Requirements — qualifications, skills, and experience needed
 
 Output JSON with exactly these fields:
+- "title": the job title
+- "company": the company name
+- "salary": salary info or null
+- "location": location or null
 - "responsibilities": concise summary of key responsibilities
 - "requirements": concise summary of key requirements
 """
