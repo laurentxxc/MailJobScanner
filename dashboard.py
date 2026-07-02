@@ -128,6 +128,7 @@ def render_table(df: pd.DataFrame):
         "resume_match_level": "Resume",
         "expectations_match_level": "Expect.",
         "_parsed_date": "Date",
+        "id": "ID",
     }
     display = df[list(cols.keys())].copy()
     display["status"] = display["status"].fillna("new").str.capitalize()
@@ -148,8 +149,9 @@ def render_table(df: pd.DataFrame):
 
     dismissed_mask = display["status"] == "Dismissed"
     for col in display.columns:
-        if col != "status":
-            display.loc[dismissed_mask, col] = display.loc[dismissed_mask, col].apply(_strikethrough)
+        if col == "status" or display[col].dtype.kind in ("i","f","b"):
+            continue
+        display.loc[dismissed_mask, col] = display.loc[dismissed_mask, col].apply(_strikethrough)
 
     styled = display.style.apply(_style_dismissed, axis=1)
 
