@@ -11,8 +11,10 @@ from analyzer.prompts import (
     EXTRACTION_SYSTEM_PROMPT,
     RESUME_MATCH_PROMPT,
     EXPECTATIONS_MATCH_PROMPT,
+    JOB_SUMMARY_PROMPT,
     build_extraction_user_prompt,
     build_match_user_prompt,
+    build_summary_user_prompt,
     restore_urls,
     shorten_urls,
 )
@@ -157,3 +159,7 @@ class LlmClient:
     def match_expectations(self, job_description: str) -> dict[str, Any]:
         user = build_match_user_prompt(job_description, "expectations", self._expectations or "")
         return self._chat(EXPECTATIONS_MATCH_PROMPT, user)
+
+    def summarize_job(self, job_description: str) -> dict[str, Any]:
+        user = build_summary_user_prompt(job_description)
+        return self._chat(JOB_SUMMARY_PROMPT, user)

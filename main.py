@@ -124,12 +124,21 @@ def refetch_single_job(url: str, llm: LlmClient) -> dict:
         expectations_match = llm.match_expectations(jd_text)
     except Exception as e:
         expectations_match = {"level": "Error", "summary": str(e)}
+
+    job_summary = None
+    try:
+        job_summary = llm.summarize_job(jd_text)
+    except Exception as e:
+        job_summary = None
+
     return {
         "error": None,
         "resume_match_level": resume_match.get("level") if resume_match else None,
         "resume_match_summary": resume_match.get("summary", "") if resume_match else "",
         "expectations_match_level": expectations_match.get("level") if expectations_match else None,
         "expectations_match_summary": expectations_match.get("summary", "") if expectations_match else "",
+        "job_responsibilities_summary": job_summary.get("responsibilities", "") if job_summary else "",
+        "job_requirements_summary": job_summary.get("requirements", "") if job_summary else "",
     }
 
 def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository) -> dict:
@@ -180,6 +189,13 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                 except Exception as e:
                     logger.warning("Expectations match failed for '%s': %s", title, e)
                     expectations_match = {"level": "Error", "summary": str(e)}
+
+                job_summary = None
+                try:
+                    job_summary = llm.summarize_job(jd_text)
+                    logger.info("Job summary for '%s': responsibilities extracted", title)
+                except Exception as e:
+                    logger.warning("Job summary failed for '%s': %s", title, e)
             else:
                 error = f"Could not fetch job description from {url}"
         else:
@@ -206,6 +222,8 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
             resume_match_summary=resume_match.get("summary") if resume_match else "",
             expectations_match_level=expectations_match.get("level") if expectations_match else None,
             expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
+            job_responsibilities_summary=job_summary.get("responsibilities", "") if job_summary else "",
+            job_requirements_summary=job_summary.get("requirements", "") if job_summary else "",
             error=error,
             notes=notes,
             status=dup_status or "new",

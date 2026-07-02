@@ -191,6 +191,17 @@ def _detail_fragment(record_id: int, db_path: str):
     row["_parsed_date"] = pd.to_datetime(row["email_received_date"], errors="coerce", utc=True)
     render_detail(row, db_path)
 
+def format_bullets(text: str) -> str:
+    #print(f"Formatting bullets for text: {text}")
+    if not text or text == "No summary available":
+        return "No summary available"
+    text = text.strip()
+    if "•" in text:
+        return text
+    parts = [s.strip() for s in text.replace("\n", " ").split(". ") if s.strip()]
+    if len(parts) <= 1:
+        return f"- {parts[0]}" if parts else "No summary available"
+    return "\n".join(f"- {p}." for p in parts)
 
 def render_detail(row: pd.Series, db_path: str):
     if row is None:
@@ -207,6 +218,18 @@ def render_detail(row: pd.Series, db_path: str):
     st.write(f"**Date:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
     st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
     st.write(f"**Location:** {row.get('location') or 'N/A'}")
+
+    resp = row.get("job_responsibilities_summary", "")
+    req = row.get("job_requirements_summary", "")
+    if resp or req:
+        with st.expander("📋 Job Details", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Responsibilities:**")
+                st.markdown(format_bullets(resp) if resp else "No summary")
+            with col2:
+                st.markdown("**Requirements:**")
+                st.markdown(format_bullets(req) if req else "No summary")
 
     current_status = row.get("status") or "new"
     record_id = int(row["id"])
@@ -247,18 +270,6 @@ def render_detail(row: pd.Series, db_path: str):
     )
 
     st.divider()
-
-    def format_bullets(text: str) -> str:
-        #print(f"Formatting bullets for text: {text}")
-        if not text or text == "No summary available":
-            return "No summary available"
-        text = text.strip()
-        if "•" in text:
-            return text
-        parts = [s.strip() for s in text.replace("\n", " ").split(". ") if s.strip()]
-        if len(parts) <= 1:
-            return f"- {parts[0]}" if parts else "No summary available"
-        return "\n".join(f"- {p}." for p in parts)
 
     col1, col2 = st.columns(2)
     with col1:

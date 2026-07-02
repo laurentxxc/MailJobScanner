@@ -17,6 +17,8 @@ class JobProposalRecord:
     resume_match_summary: Optional[str] = None
     expectations_match_level: Optional[str] = None
     expectations_match_summary: Optional[str] = None
+    job_responsibilities_summary: str = ""
+    job_requirements_summary: str = ""
     error: Optional[str] = None
     notes: str = ""
     status: str = "new"

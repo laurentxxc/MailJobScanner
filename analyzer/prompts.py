@@ -103,3 +103,21 @@ def build_match_user_prompt(job_description: str, doc_type: str, candidate_text:
         f"Analyze the match between this job and the candidate's {doc_label.lower()}. "
         "Be honest and specific about what matches and what doesn't."
     )
+
+
+JOB_SUMMARY_PROMPT = """\
+You are extracting key details from a job description.
+
+Summarize the following two sections concisely (2-3 sentences each):
+
+1. Responsibilities — what the role involves day-to-day
+2. Requirements — qualifications, skills, and experience needed
+
+Output JSON with exactly these fields:
+- "responsibilities": concise summary of key responsibilities
+- "requirements": concise summary of key requirements
+"""
+
+
+def build_summary_user_prompt(job_description: str) -> str:
+    return f"Job Description:\n\n{job_description}"
