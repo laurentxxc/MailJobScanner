@@ -97,17 +97,18 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def render_stats(df: pd.DataFrame):
-    total = len(df)
-    high = len(df[df["_best_label"] == "High"])
-    medium = len(df[df["_best_label"] == "Medium"])
-    low = len(df[(df["_best_label"] == "Low") | (df["_best_label"] == "N/A")])
+def render_stats(db_path: str):
+    df_all = load_data(db_path)
+    total = len(df_all)
+    high = len(df_all[df_all["_best_label"] == "High"])
+    medium = len(df_all[df_all["_best_label"] == "Medium"])
+    low = len(df_all[(df_all["_best_label"] == "Low") | (df_all["_best_label"] == "N/A")])
 
-    cols = st.columns(4)
-    cols[0].metric("Total Proposals", total)
-    cols[1].metric("High Match", high, border=True)
-    cols[2].metric("Medium Match", medium, border=True)
-    cols[3].metric("Low Match", low, border=True)
+    c1, c2 = st.sidebar.columns(2)
+    c1.metric("Total", total)
+    c2.metric("🟢 High", high)
+    c1.metric("🟠 Medium", medium)
+    c2.metric("🔴 Low", low)
 
 
 def render_table(df: pd.DataFrame):
@@ -159,6 +160,7 @@ def render_table(df: pd.DataFrame):
         selection_mode="single-row",
         width="stretch",
         hide_index=True,
+        height=600,
         key="proposals_table",
     )
 
@@ -211,75 +213,74 @@ def render_detail(row: pd.Series, db_path: str):
     r_emoji = emoji_map.get(row["resume_match_level"], "⚪")
     e_emoji = emoji_map.get(row["expectations_match_level"], "⚪")
 
-    st.subheader(f"[{row['job_title']}]({row['job_url']})")
-    st.write(f"**Company:** {row['company']}")
-    st.write(f"**Email:** {row['email_subject']}")
-    st.write(f"**From:** {row['email_from']}")
-    st.write(f"**Date:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
-    st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
-    st.write(f"**Location:** {row.get('location') or 'N/A'}")
+    left, right = st.columns(2, vertical_alignment="top")
 
-    resp = row.get("job_responsibilities_summary", "")
-    req = row.get("job_requirements_summary", "")
-    if resp or req:
-        with st.expander("📋 Job Details", expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Responsibilities:**")
-                st.markdown(format_bullets(resp) if resp else "No summary")
-            with col2:
-                st.markdown("**Requirements:**")
-                st.markdown(format_bullets(req) if req else "No summary")
+    with left:
+        st.subheader(f"[{row['job_title']}]({row['job_url']})")
+        st.write(f"**Company:** {row['company']}")
+        st.write(f"**Email:** {row['email_subject']}")
+        st.write(f"**From:** {row['email_from']}")
+        st.write(f"**Date:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
+        st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
+        st.write(f"**Location:** {row.get('location') or 'N/A'}")
 
-    current_status = row.get("status") or "new"
-    record_id = int(row["id"])
+        resp = row.get("job_responsibilities_summary", "")
+        req = row.get("job_requirements_summary", "")
+        if resp or req:
+            st.divider()
+        if resp:
+            st.markdown("**Responsibilities:**")
+            st.markdown(format_bullets(resp))
+        if req:
+            st.markdown("**Requirements:**")
+            st.markdown(format_bullets(req))
 
-    def _on_status_change():
-        new_val = st.session_state.get(f"status_{record_id}")
-        if new_val and new_val != current_status:
-            update_status_in_db(db_path, record_id, new_val)
-            st.session_state["_selected_id"] = record_id
-            st.cache_data.clear()
+    with right:
+        current_status = row.get("status") or "new"
+        record_id = int(row["id"])
 
-    st.write("**Status:**")
-    st.selectbox(
-        label="status",
-        label_visibility="collapsed",
-        options=["new", "applied", "interview", "dismissed"],
-        index=["new", "applied", "interview", "dismissed"].index(current_status) if current_status in ["new", "applied", "interview", "dismissed"] else 0,
-        format_func=lambda x: f"{x.capitalize()}",
-        key=f"status_{record_id}",
-        on_change=_on_status_change,
-    )
+        def _on_status_change():
+            new_val = st.session_state.get(f"status_{record_id}")
+            if new_val and new_val != current_status:
+                update_status_in_db(db_path, record_id, new_val)
+                st.session_state["_selected_id"] = record_id
+                st.cache_data.clear()
 
-    def _on_notes_change():
-        new_text = st.session_state.get(f"notes_{record_id}", "")
-        if new_text != row.get("notes"):
-            update_notes_in_db(db_path, record_id, new_text)
-            st.session_state["_selected_id"] = record_id
-            st.cache_data.clear()
+        st.write("**Status:**")
+        st.selectbox(
+            label="status",
+            label_visibility="collapsed",
+            options=["new", "applied", "interview", "dismissed"],
+            index=["new", "applied", "interview", "dismissed"].index(current_status) if current_status in ["new", "applied", "interview", "dismissed"] else 0,
+            format_func=lambda x: f"{x.capitalize()}",
+            key=f"status_{record_id}",
+            on_change=_on_status_change,
+        )
 
-    st.write("**Notes:**")
-    st.text_area(
-        label="notes",
-        label_visibility="collapsed",
-        value=row.get("notes") or "",
-        height=100,
-        key=f"notes_{record_id}",
-        on_change=_on_notes_change,
-    )
+        def _on_notes_change():
+            new_text = st.session_state.get(f"notes_{record_id}", "")
+            if new_text != row.get("notes"):
+                update_notes_in_db(db_path, record_id, new_text)
+                st.session_state["_selected_id"] = record_id
+                st.cache_data.clear()
 
-    st.divider()
+        st.write("**Notes:**")
+        st.text_area(
+            label="notes",
+            label_visibility="collapsed",
+            value=row.get("notes") or "",
+            height=100,
+            key=f"notes_{record_id}",
+            on_change=_on_notes_change,
+        )
 
-    col1, col2 = st.columns(2)
-    with col1:
+        st.divider()
+
         st.markdown(f"**Resume Match:** {r_emoji} {row['resume_match_level'] or 'N/A'}")
         st.markdown(format_bullets(row.get("resume_match_summary", "")))
-    with col2:
         st.markdown(f"**Expectations Match:** {e_emoji} {row['expectations_match_level'] or 'N/A'}")
         st.markdown(format_bullets(row.get("expectations_match_summary", "")))
 
-    st.divider()
     record_id = int(row["id"])
     job_url = row.get("job_url", "")
     refetch_key = f"refetch_{record_id}"
@@ -314,9 +315,6 @@ def parse_interval(label: str) -> int:
 
 
 def render_refresh():
-    st.sidebar.divider()
-    st.sidebar.header("Refresh")
-
     auto_refresh = st.sidebar.toggle("Auto-refresh", value=False)
     interval_label = st.sidebar.selectbox("Interval", ["15s", "30s", "1min", "5min"], index=1)
 
@@ -346,8 +344,8 @@ def render_export(df: pd.DataFrame):
 
 def main():
     st.set_page_config(page_title="MailJobScan Dashboard", layout="wide")
-    st.title("🔍 MailJobScan Dashboard")
-    st.caption("Browse and review analyzed job proposals from your job alert emails.")
+    st.title("Job Opportunity Dashboard")
+    st.caption("Browse and review analyzed job proposals coming from your job alert emails.")
 
     config = load_config()
     db_path = Path(__file__).parent / config["paths"]["db"]
@@ -359,14 +357,21 @@ def main():
     df = load_data(str(db_path))
 
     with st.sidebar:
-        st.header("Filters")
+        st.header("📊" + "\u00a0" * 3 + "Analysed jobs")
+        render_stats(db_path)
+        st.divider()
+
+        st.header("🔍" + "\u00a0" * 3 + "Filters")
         df = apply_filters(df)
         st.divider()
-        render_export(df)
-        render_refresh()
 
-    render_stats(df)
-    st.divider()
+        st.header("🔄" + "\u00a0" * 3 + "Refresh")
+        render_refresh()
+        st.divider()
+
+        render_export(df)
+
+    st.caption(f"📄 **{len(df)}** proposals match the current filters")
     selected_row = render_table(df)
     if selected_row is not None:
         st.session_state["_selected_id"] = int(selected_row["id"])
