@@ -55,11 +55,9 @@ Key criteria (in order of importance):
 4. Company stage and culture — compatible with what the candidate wants?
 5. Career growth — does the role offer what the candidate seeks?
 
-Salary mismatch or location deal-breaker = Low, regardless of other factors.
-
 Output JSON with exactly these fields:
 - "score": integer 1-10
-- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10
+- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10. Salary mismatch or location deal-breaker = Low, regardless of other factors.
 - "matching_aspects": list of aligned preferences
 - "conflicting_aspects": list of mismatches or deal-breakers
 - "summary": 2-3 sentence explanation
