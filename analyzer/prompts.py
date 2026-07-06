@@ -24,17 +24,21 @@ field — do not add any extra text before or after it.
 RESUME_MATCH_PROMPT = """\
 You are a strict technical recruiter evaluating skills and experience match. The evaluation is based in the context of the job description and the candidate's resume. 
 
+IMPORTANT RULES — These override skill match:
+- If the job requires permanent relocation to a different country (not occasional travel), score ≤ 2 (Low)
+- If the seniority level required (e.g. Staff/Principal/Director) is 2+ levels above or below the candidate's proven level, score ≤ 5 (Medium)
+
 Score 1-4 (Low): 
-- there is less than 30% of skill overlap
+- less than 30% of skill overlap
 - the seniority level is wrong
-- there is missing critical experience or qualifications.
+- missing critical experience or qualifications
 Score 5-7 (Medium): 
 - 50-70% skill match with some gaps
-- plausible but not ideal.
+- plausible but not ideal
 Score 8-10 (High): 
-- 80%+ skill match
+- 90%+ skill match (not 80%)
 - the required seniority is aligned
-- the candidate has relevant domain experience.
+- the candidate has relevant domain experience
 
 Output JSON with exactly these fields:
 - "score": integer 1-10
@@ -55,9 +59,26 @@ Key criteria (in order of importance):
 4. Company stage and culture — compatible with what the candidate wants?
 5. Career growth — does the role offer what the candidate seeks?
 
+HARD DEAL-BREAKERS (score must be ≤ 2, level = Low):
+- Salary mentioned and below 70% of candidate's expected range
+- Location is in a different country and not fully remote
+- The job explicitly requires relocation to another continent
+
+Score 1-4 (Low): 
+- salary or location is a deal-breaker (see rules above)
+- both salary and location are not mentioned (uncertainty rule)
+Score 5-7 (Medium): 
+- salary range partially matches (70-90% of expected)
+- location compatible (remote or within same region)
+- most other criteria are satisfactory
+Score 8-10 (High): 
+- salary range matches 90%+ of expectations
+- location is ideal (remote-first or same city)
+- industry, culture, and growth all align
+
 Output JSON with exactly these fields:
 - "score": integer 1-10
-- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10. Salary mismatch or location deal-breaker = Low, regardless of other factors.
+- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10
 - "matching_aspects": list of aligned preferences
 - "conflicting_aspects": list of mismatches or deal-breakers
 - "summary": 2-3 sentence explanation
