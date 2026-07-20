@@ -74,4 +74,5 @@ def parse_eml(filepath: str) -> dict:
     from_ = _decode_mime_header(msg.get("From", ""))
     date = msg.get("Date", "")
     body = _get_email_body(msg) or ""
-    return {"subject": subject, "from": from_, "date": date, "body": body}
+    message_id = msg.get("Message-Id", "")
+    return {"subject": subject, "from": from_, "date": date, "body": body, "message_id": message_id}

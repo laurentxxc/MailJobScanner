@@ -110,7 +110,9 @@ bash scripts/install.sh
 
 ## Usage
 
-### Via Mail Script (recommended)
+### Automate job scanning
+
+#### Via Mail Script (recommended)
 
 1. Open **Mail.app**
 2. Select one or more job alert emails
@@ -119,7 +121,7 @@ bash scripts/install.sh
 5. Emails with **High** match level are flagged with a yellow flag in Mail
 6. All results are logged to `jobscan.db`
 
-### Via Automator Quick Action (alternative)
+#### Via Automator Quick Action (alternative)
 
 If the Scripts menu isn't available, create a Quick Action:
 
@@ -157,13 +159,62 @@ on run {input, parameters}
 end run
 ```
 
-### Query results directly
+#### Via Gmail IMAP (cross-platform, no macOS required)
+
+The Gmail scanner connects directly to your Gmail inbox via IMAP, finds job alert emails in a configurable label, processes them through the same LLM pipeline, and marks them done — no Apple Mail or macOS needed.
+
+**Setup:**
+
+1. Enable 2-Factor Authentication on your Google account
+2. Generate an App Password at https://myaccount.google.com/apppasswords
+3. Edit `config.yaml`:
+
+```yaml
+gmail:
+  enabled: true
+  email: "your.email@gmail.com"
+  app_password: "abcd efgh ijkl mnop"   # 16-char App Password
+  scan_label: "Job Alerts"               # Gmail label containing job emails
+  done_label: "JobScan/Done"             # label applied after processing
+  poll_interval_seconds: 300             # how often to check (daemon mode)
+```
+
+> **Tip:** You can also store the App Password as an environment variable:
+> `export GMAIL_APP_PASSWORD="abcd efgh ijkl mnop"` and reference it in
+> `config.yaml` as `app_password: "${GMAIL_APP_PASSWORD}"`.
+
+**Run:**
+
+```bash
+source .venv/bin/activate
+
+# Single scan — processes all unscanned emails and exits
+python gmail_scanner.py
+
+# Daemon mode — polls Gmail every N seconds (from config)
+python gmail_scanner.py --daemon
+```
+
+**How it works:**
+
+- `gmail_scanner.py` connects to Gmail IMAP and selects your `scan_label` (default: "Job Alerts")
+- For each email, it checks the `Message-ID` header against the SQLite database — already-processed emails are skipped
+- New emails are written to `.eml` files in `/tmp/mailjobscan/` and passed to `main.py`'s `process_eml()` function
+- After processing, a `JobScan/Done` label is applied in Gmail as a secondary dedup marker (visible in Gmail UI)
+- Results appear in the Streamlit dashboard just like AppleScript-triggered scans
+
+> **Note:** The Gmail label `JobScan/Done` is created automatically on first
+> use. You can remove it from emails in Gmail to re-scan them (the DB check
+> is the primary dedup guard).
+### Browse scanned jobs
+
+#### Query results directly
 
 ```bash
 sqlite3 jobscan.db -header -column "SELECT job_title, company, resume_match_level, expectations_match_level FROM job_proposals;"
 ```
 
-### Dashboard (Streamlit)
+#### Dashboard (Streamlit)
 
 Browse, filter, and analyze results in an interactive web dashboard:
 
@@ -250,6 +301,16 @@ paths:
   expectations: data/expectations.md
   db: jobscan.db
   linkedin_cookies: data/private/linkedin_cookies.json         # required for fetching job on LinkedIn (see Extract LinkedIn cookies)
+
+gmail:                                                # optional — Gmail IMAP scanning
+  enabled: false
+  email: "your.email@gmail.com"
+  app_password: "${GMAIL_APP_PASSWORD}"               # 16-char App Password
+  imap_host: "imap.gmail.com"
+  imap_port: 993
+  scan_label: "Job Alerts"
+  done_label: "JobScan/Done"
+  poll_interval_seconds: 300
 ```
 
 ## Next Steps
@@ -274,7 +335,13 @@ Then add an `OpenAIClient` subclass that implements the same `extract_job_propos
 
 ### Scheduled scanning
 
-Convert the manual AppleScript trigger to run periodically via `launchd` or `cron` by polling a Mail mailbox folder via IMAP directly (bypassing Mail.app).
+The Gmail IMAP scanner supports continuous polling out of the box:
+
+```bash
+python gmail_scanner.py --daemon    # polls every N seconds (from config)
+```
+
+See [Via Gmail IMAP](#via-gmail-imap-cross-platform-no-macos-required) above for setup instructions. For non-Gmail providers, adapt the IMAP settings in `config.yaml`.
 
 ### Extract LinkedIn Cookies
 

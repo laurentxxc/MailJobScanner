@@ -52,6 +52,7 @@ class JobRepository:
             "notes TEXT NOT NULL DEFAULT ''",
             "job_responsibilities_summary TEXT DEFAULT ''",
             "job_requirements_summary TEXT DEFAULT ''",
+            "message_id TEXT DEFAULT ''",
         ]:
             try:
                 conn.execute(f"ALTER TABLE job_proposals ADD COLUMN {col}")
@@ -69,8 +70,8 @@ class JobRepository:
                 resume_match_level, resume_match_summary,
                 expectations_match_level, expectations_match_summary,
                 job_responsibilities_summary, job_requirements_summary,
-                error, status, notes, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                error, status, notes, message_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.email_subject,
@@ -90,6 +91,7 @@ class JobRepository:
                 record.error,
                 record.status,
                 record.notes,
+                record.message_id,
                 record.created_at,
             ),
         )
@@ -103,6 +105,16 @@ class JobRepository:
             (company, job_title),
         ).fetchone()
         return (row["id"], row["status"], row["created_at"]) if row else None
+
+    def has_message_id(self, message_id: str) -> bool:
+        if not message_id:
+            return False
+        self.connect()
+        row = self._conn.execute(
+            "SELECT 1 FROM job_proposals WHERE message_id = ? LIMIT 1",
+            (message_id,),
+        ).fetchone()
+        return row is not None
 
     def update_status(self, record_id: int, status: str) -> None:
         conn = self.connect()

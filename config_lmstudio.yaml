@@ -15,3 +15,13 @@ paths:
 
 email:
   temp_dir: /tmp/mailjobscan
+
+gmail:
+  enabled: false
+  email: ""
+  app_password: ""             # 16-char App Password, or use ${GMAIL_APP_PASSWORD}
+  imap_host: "imap.gmail.com"
+  imap_port: 993
+  scan_label: "Job Alerts"     # Gmail label to search for job emails
+  done_label: "JobScan/Done"   # Gmail label applied after processing
+  poll_interval_seconds: 300

@@ -22,5 +22,6 @@ class JobProposalRecord:
     error: Optional[str] = None
     notes: str = ""
     status: str = "new"
+    message_id: str = ""
     id: Optional[int] = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())

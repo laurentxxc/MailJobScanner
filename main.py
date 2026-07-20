@@ -242,6 +242,7 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
             error=error,
             notes=notes,
             status=dup_status or "new",
+            message_id=email_data.get("message_id", ""),
         )
         repo.insert(record)
 
