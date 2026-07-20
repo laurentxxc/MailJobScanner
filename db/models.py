@@ -19,6 +19,7 @@ class JobProposalRecord:
     expectations_match_summary: Optional[str] = None
     job_responsibilities_summary: str = ""
     job_requirements_summary: str = ""
+    job_technology_domains: str = ""
     error: Optional[str] = None
     notes: str = ""
     status: str = "new"

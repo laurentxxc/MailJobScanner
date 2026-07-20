@@ -74,7 +74,7 @@ Score 5-7 (Medium):
 Score 8-10 (High): 
 - salary range matches 90%+ of expectations
 - location is ideal (remote-first or same city)
-- industry, culture, and growth all align
+- industry, preferred technology domains,culture, and growth all align
 
 Output JSON with exactly these fields:
 - "score": integer 1-10
@@ -137,6 +137,11 @@ Then summarize concisely (2-3 sentences each):
 5. Responsibilities — what the role involves day-to-day
 6. Requirements — qualifications, skills, and experience needed
 
+Then identify (comma-separated list):
+7. Technology Domains — technology areas (e.g. "Python, React, PostgreSQL, AWS, Docker")
+   and functional domains (e.g. "fintech, payments, data pipelines, real-time systems")
+   covered by the role. List the most prominent ones, max 10-12 items.
+
 Output JSON with exactly these fields:
 - "title": the job title
 - "company": the company name
@@ -144,6 +149,7 @@ Output JSON with exactly these fields:
 - "location": location or null
 - "responsibilities": concise summary of key responsibilities
 - "requirements": concise summary of key requirements
+- "technology_domains": comma-separated list of technology areas and functional domains
 """
 
 

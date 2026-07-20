@@ -228,14 +228,19 @@ def render_detail(row: pd.Series, db_path: str):
 
         resp = row.get("job_responsibilities_summary", "")
         req = row.get("job_requirements_summary", "")
-        if resp or req:
+        tech = row.get("job_technology_domains", "")
+        if resp or req or tech:
             st.divider()
+        if tech:
+            st.markdown("**Technology Domains:**")
+            st.markdown(tech)
         if resp:
             st.markdown("**Responsibilities:**")
             st.markdown(format_bullets(resp))
         if req:
             st.markdown("**Requirements:**")
             st.markdown(format_bullets(req))
+
 
     with right:
         current_status = row.get("status") or "new"
