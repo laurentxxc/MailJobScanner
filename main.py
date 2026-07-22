@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import logging
 import re
@@ -160,7 +161,7 @@ def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> 
         "location": job_summary.get("location", "") if job_summary else "",
     }
 
-def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository) -> dict:
+def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository, dry_run: bool = False) -> dict:
     email_data = parse_eml(filepath)
     logger.info("Processing: %s", email_data["subject"])
 
@@ -243,35 +244,39 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
 
         notes = ""
         dup_status = None
-        dup = repo.find_last_duplicate(company, title)
-        if dup:
-            dup_id, dup_status, dup_created_at = dup
-            notes = f"duplicate of {dup_id} (created at {dup_created_at})"
-            logger.info("Duplicate of record %d for '%s' at %s", dup_id, title, company)
 
-        record = JobProposalRecord(
-            email_subject=email_data["subject"],
-            email_from=email_data["from"],
-            email_received_date=email_data["date"],
-            job_title=title,
-            job_url=url,
-            company=company,
-            salary=salary,
-            location=location,
-            resume_match_level=resume_match.get("level") if resume_match else None,
-            resume_match_summary=resume_match.get("summary") if resume_match else "",
-            expectations_match_level=expectations_match.get("level") if expectations_match else None,
-            expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
-            job_responsibilities_summary=job_summary.get("responsibilities", "") if job_summary else "",
-            job_requirements_summary=job_summary.get("requirements", "") if job_summary else "",
-            job_technology_domains=job_summary.get("technology_domains", "") if job_summary else "",
-            commute_info=commute_info,
-            error=error,
-            notes=notes,
-            status=dup_status or "new",
-            message_id=email_data.get("message_id", ""),
-        )
-        repo.insert(record)
+        if not dry_run:
+            dup = repo.find_last_duplicate(company, title)
+            if dup:
+                dup_id, dup_status, dup_created_at = dup
+                notes = f"duplicate of {dup_id} (created at {dup_created_at})"
+                logger.info("Duplicate of record %d for '%s' at %s", dup_id, title, company)
+
+            record = JobProposalRecord(
+                email_subject=email_data["subject"],
+                email_from=email_data["from"],
+                email_received_date=email_data["date"],
+                job_title=title,
+                job_url=url,
+                company=company,
+                salary=salary,
+                location=location,
+                resume_match_level=resume_match.get("level") if resume_match else None,
+                resume_match_summary=resume_match.get("summary") if resume_match else "",
+                expectations_match_level=expectations_match.get("level") if expectations_match else None,
+                expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
+                job_responsibilities_summary=job_summary.get("responsibilities", "") if job_summary else "",
+                job_requirements_summary=job_summary.get("requirements", "") if job_summary else "",
+                job_technology_domains=job_summary.get("technology_domains", "") if job_summary else "",
+                commute_info=commute_info,
+                error=error,
+                notes=notes,
+                status=dup_status or "new",
+                message_id=email_data.get("message_id", ""),
+            )
+            repo.insert(record)
+        else:
+            logger.info("Dry run — skipping DB insert for '%s'", title)
 
         rl = (resume_match or {}).get("level", "")
         el = (expectations_match or {}).get("level", "")
@@ -286,21 +291,23 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
 
 
 def main():
-    if len(sys.argv) < 2:
-        logger.error("Usage: main.py <path-to-eml-file> [path-to-another-eml-file...]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Process .eml files for job proposals")
+    parser.add_argument("eml_files", nargs="+", help="Path(s) to .eml files")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Run full LLM analysis but skip DB insert")
+    args = parser.parse_args()
 
     config = load_config()
     llm = LlmClient(config)
     repo = JobRepository(config["paths"]["db"])
     repo.connect()
 
-    for eml_path in sys.argv[1:]:
+    for eml_path in args.eml_files:
         if not Path(eml_path).exists():
             logger.warning("File not found: %s", eml_path)
             continue
         try:
-            result = process_eml(eml_path, config, llm, repo)
+            result = process_eml(eml_path, config, llm, repo, dry_run=args.dry_run)
             print(json.dumps(result))
         except Exception as e:
             logger.error("Failed to process %s: %s", eml_path, e)
