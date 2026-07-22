@@ -180,6 +180,12 @@ gmail:
   poll_interval_seconds: 300             # how often to check (daemon mode)
 ```
 
+> **Important — Label hierarchy:** `done_label` must **not** be a child of
+> `scan_label` (e.g. `Job Alerts/Done`). Gmail IMAP `SELECT` returns emails
+> with the selected label **and all descendant labels**, so a child `done_label`
+> would be included in every scan. Use a sibling path instead (e.g.
+> `scan_label: "Job Alerts"` / `done_label: "JobScan/Done"`).
+
 > **Tip:** You can also store the App Password as an environment variable:
 > `export GMAIL_APP_PASSWORD="abcd efgh ijkl mnop"` and reference it in
 > `config.yaml` as `app_password: "${GMAIL_APP_PASSWORD}"`.
@@ -206,7 +212,10 @@ python gmail_scanner.py --daemon
 
 > **Note:** The Gmail label `JobScan/Done` is created automatically on first
 > use. You can remove it from emails in Gmail to re-scan them (the DB check
-> is the primary dedup guard).
+> is the primary dedup guard). Keep `scan_label` and `done_label` as
+> **sibling** labels (not parent/child) — Gmail's IMAP `SELECT` includes
+> descendant labels, so a child `done_label` would cause re-scans.
+
 ### Browse scanned jobs
 
 #### Query results directly
@@ -310,7 +319,7 @@ gmail:                                                # optional — Gmail IMAP 
   imap_host: "imap.gmail.com"
   imap_port: 993
   scan_label: "Job Alerts"
-  done_label: "JobScan/Done"
+  done_label: "JobScan/Done"               # keep as sibling, not child of scan_label
   poll_interval_seconds: 300
 
 commute:                                              # optional — commute time calculation

@@ -8,7 +8,6 @@ Usage:
     python gmail_scanner.py --daemon     # poll every N seconds (from config)
 """
 import argparse
-import email
 import imaplib
 import json
 import logging
@@ -64,13 +63,6 @@ def connect_gmail(gmail_cfg: dict) -> imaplib.IMAP4_SSL:
     return mail
 
 
-def _fetch_message_id(mail: imaplib.IMAP4_SSL, uid: str) -> str:
-    _, data = mail.uid("fetch", uid, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
-    raw = data[0][1] if data and data[0] else b""
-    msg = email.message_from_bytes(raw)
-    return msg.get("Message-Id", "")
-
-
 def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, label: str) -> bool:
     try:
         mail.uid("copy", uid, label)
@@ -102,15 +94,9 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
         logger.info("Found %d messages in '%s'", len(uids), scan_label)
 
         processed = 0
-        skipped = 0
 
         for uid in uids:
             uid_str = uid.decode()
-            message_id = _fetch_message_id(mail, uid_str)
-
-            if message_id and repo.has_message_id(message_id):
-                skipped += 1
-                continue
 
             _, msg_data = mail.uid("fetch", uid_str, "(RFC822)")
             if not msg_data or not msg_data[0]:
@@ -143,7 +129,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                 except OSError:
                     pass
 
-        logger.info("Scan complete: %d processed, %d skipped (already in DB)", processed, skipped)
+        logger.info("Scan complete: %d processed", processed)
         return processed
 
     finally:

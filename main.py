@@ -163,6 +163,12 @@ def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> 
 
 def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository, dry_run: bool = False) -> dict:
     email_data = parse_eml(filepath)
+
+    message_id = email_data.get("message_id", "")
+    if not dry_run and message_id and repo.has_message_id(message_id):
+        logger.info("Skipping %s — already processed (message_id=%s)", filepath, message_id)
+        return {"file": filepath, "flagged": False, "total": 0, "skipped": True}
+
     logger.info("Processing: %s", email_data["subject"])
 
     proposals = llm.extract_job_proposals(email_data["body"])

@@ -23,7 +23,8 @@ gmail:
   imap_host: "imap.gmail.com"
   imap_port: 993
   scan_label: "Job Alerts"     # Gmail label to search for job emails
-  done_label: "JobScan/Done"   # Gmail label applied after processing
+  done_label: "Scanned Jobs"   # label applied after processing — must NOT be a child of scan_label
+                                # (IMAP SELECT returns child labels too, causing re-scans)
   poll_interval_seconds: 300
 
 commute:
