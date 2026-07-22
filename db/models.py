@@ -20,6 +20,7 @@ class JobProposalRecord:
     job_responsibilities_summary: str = ""
     job_requirements_summary: str = ""
     job_technology_domains: str = ""
+    commute_info: str = ""
     error: Optional[str] = None
     notes: str = ""
     status: str = "new"

@@ -74,7 +74,13 @@ Score 5-7 (Medium):
 Score 8-10 (High): 
 - salary range matches 90%+ of expectations
 - location is ideal (remote-first or same city)
-- industry, preferred technology domains,culture, and growth all align
+- industry, preferred technology domains, culture, and growth all align
+
+COMMUTE DATA (when provided):
+The candidate's home is at a fixed location. Pre-calculated commute information
+to the job location is provided in the user prompt below. Evaluate this against
+the candidate's commute threshold in their expectations file. If the commute
+exceeds the stated maximum, this is a deal-breaker (score ≤ 4, level = Low).
 
 Output JSON with exactly these fields:
 - "score": integer 1-10
@@ -114,14 +120,17 @@ def build_extraction_user_prompt(email_body: str) -> str:
     return f"Email content:\n\n{email_body}"
 
 
-def build_match_user_prompt(job_description: str, doc_type: str, candidate_text: str) -> str:
+def build_match_user_prompt(job_description: str, doc_type: str, candidate_text: str, commute_info: str = "") -> str:
     doc_label = "Resume / Professional Experience" if doc_type == "resume" else "Job Expectations & Motivation"
-    return (
+    prompt = (
         f"Job Description:\n{job_description}\n\n"
         f"Candidate {doc_label}:\n{candidate_text}\n\n"
         f"Analyze the match between this job and the candidate's {doc_label.lower()}. "
         "Be honest and specific about what matches and what doesn't."
     )
+    if commute_info:
+        prompt += f"\n\nCommute information: {commute_info}"
+    return prompt
 
 
 JOB_SUMMARY_PROMPT = """\

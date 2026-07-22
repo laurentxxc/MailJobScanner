@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from analyzer.llm_client import LlmClient
+from analyzer.commute import get_commute_info
 from db.models import JobProposalRecord
 from db.repository import JobRepository
 from scanner.email_parser import parse_eml
@@ -105,7 +106,7 @@ def is_login_page(text: str, url: str = "") -> bool:
         return True
     return count >= 3
 
-def refetch_single_job(url: str, llm: LlmClient) -> dict:
+def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> dict:
     jd_text = fetch_job_description(url) if url else None
     if not jd_text:
         return {"error": f"Could not fetch job description from {url}" if url else "No URL",
@@ -115,21 +116,33 @@ def refetch_single_job(url: str, llm: LlmClient) -> dict:
         return {"error": f"Login page detected at {url}",
                 "resume_match_level": None, "resume_match_summary": "",
                 "expectations_match_level": None, "expectations_match_summary": ""}
-    resume_match = expectations_match = None
-    try:
-        resume_match = llm.match_resume(jd_text)
-    except Exception as e:
-        resume_match = {"level": "Error", "summary": str(e)}
-    try:
-        expectations_match = llm.match_expectations(jd_text)
-    except Exception as e:
-        expectations_match = {"level": "Error", "summary": str(e)}
 
     job_summary = None
     try:
         job_summary = llm.summarize_job(jd_text)
     except Exception as e:
         job_summary = None
+
+    commute_info = ""
+    if config and config.get("commute", {}).get("enabled"):
+        commute_cfg = config["commute"]
+        job_location = job_summary.get("location", "") if job_summary else ""
+        commute_info = get_commute_info(
+            commute_cfg["home_address"],
+            job_location,
+            commute_cfg.get("api_key", ""),
+            commute_cfg.get("profile", "driving-car"),
+        )
+
+    resume_match = expectations_match = None
+    try:
+        resume_match = llm.match_resume(jd_text)
+    except Exception as e:
+        resume_match = {"level": "Error", "summary": str(e)}
+    try:
+        expectations_match = llm.match_expectations(jd_text, commute_info)
+    except Exception as e:
+        expectations_match = {"level": "Error", "summary": str(e)}
 
     return {
         "error": None,
@@ -140,6 +153,7 @@ def refetch_single_job(url: str, llm: LlmClient) -> dict:
         "job_responsibilities_summary": job_summary.get("responsibilities", "") if job_summary else "",
         "job_requirements_summary": job_summary.get("requirements", "") if job_summary else "",
         "job_technology_domains": job_summary.get("technology_domains", "") if job_summary else "",
+        "commute_info": commute_info,
         "title": job_summary.get("title", "") if job_summary else "",
         "company": job_summary.get("company", "") if job_summary else "",
         "salary": job_summary.get("salary", "") if job_summary else "",
@@ -169,6 +183,7 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
         resume_match = None
         expectations_match = None
         error = None
+        commute_info = ""
 
         if url:
             jd_text = fetch_job_description(url)
@@ -177,24 +192,6 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                 error = f"Login page detected at {url}"
                 jd_text = None
             if jd_text:
-                try:
-                    resume_match = llm.match_resume(jd_text)
-                    logger.info("Resume match for '%s': %s", title, resume_match.get("level", "?"))
-                except Exception as e:
-                    logger.warning("Resume match failed for '%s': %s", title, e)
-                    resume_match = {"level": "Error", "summary": str(e)}
-
-                try:
-                    expectations_match = llm.match_expectations(jd_text)
-                    logger.info(
-                        "Expectations match for '%s': %s",
-                        title,
-                        expectations_match.get("level", "?"),
-                    )
-                except Exception as e:
-                    logger.warning("Expectations match failed for '%s': %s", title, e)
-                    expectations_match = {"level": "Error", "summary": str(e)}
-
                 job_summary = None
                 try:
                     job_summary = llm.summarize_job(jd_text)
@@ -212,6 +209,33 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                         salary = job_summary["salary"]
                     if job_summary.get("location"):
                         location = job_summary["location"]
+
+                if config.get("commute", {}).get("enabled"):
+                    commute_cfg = config["commute"]
+                    commute_info = get_commute_info(
+                        commute_cfg["home_address"],
+                        location,
+                        commute_cfg.get("api_key", ""),
+                        commute_cfg.get("profile", "driving-car"),
+                    )
+
+                try:
+                    resume_match = llm.match_resume(jd_text)
+                    logger.info("Resume match for '%s': %s", title, resume_match.get("level", "?"))
+                except Exception as e:
+                    logger.warning("Resume match failed for '%s': %s", title, e)
+                    resume_match = {"level": "Error", "summary": str(e)}
+
+                try:
+                    expectations_match = llm.match_expectations(jd_text, commute_info)
+                    logger.info(
+                        "Expectations match for '%s': %s",
+                        title,
+                        expectations_match.get("level", "?"),
+                    )
+                except Exception as e:
+                    logger.warning("Expectations match failed for '%s': %s", title, e)
+                    expectations_match = {"level": "Error", "summary": str(e)}
             else:
                 error = f"Could not fetch job description from {url}"
         else:
@@ -241,6 +265,7 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
             job_responsibilities_summary=job_summary.get("responsibilities", "") if job_summary else "",
             job_requirements_summary=job_summary.get("requirements", "") if job_summary else "",
             job_technology_domains=job_summary.get("technology_domains", "") if job_summary else "",
+            commute_info=commute_info,
             error=error,
             notes=notes,
             status=dup_status or "new",

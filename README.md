@@ -8,6 +8,7 @@ Scan job alert emails from Apple Mail, extract job proposals, analyze them again
 - **AI extraction** — parses job alert emails into structured proposals (title, URL, company, salary, location)
 - **Automated analysis** — fetches each job description, compares it against your resume and expectations
 - **Match scoring** — rates each job Low/Medium/High for both skill fit and preference fit
+- **Commute calculation** — optional travel time via OpenRouteService, injected into expectations matching
 - **Local & private** — runs entirely on your machine via Ollama; no data leaves your Mac
 - **Swappable AI** — designed so you can switch to OpenAI/Claude by changing one config line
 
@@ -229,7 +230,7 @@ Features:
 - **Date range filter** — last 7/30/90 days or custom period
 - **Match filter** — show only high matches, medium+, or low matches
 - **Color-coded table** — green (High), yellow (Medium), red (Low)
-- **Detail panel** — click any proposal to see full match summaries, URL, salary, and location
+- **Detail panel** — click any proposal to see full match summaries, commute info, URL, salary, and location
 - **CSV export** — download filtered results
 
 #### macOS: MailJobScan.command
@@ -311,6 +312,12 @@ gmail:                                                # optional — Gmail IMAP 
   scan_label: "Job Alerts"
   done_label: "JobScan/Done"
   poll_interval_seconds: 300
+
+commute:                                              # optional — commute time calculation
+  enabled: false
+  home_address: "Achères, Yvelines, France"           # your home / reference address
+  api_key: "${OPENROUTESERVICE_API_KEY}"              # free key from openrouteservice.org
+  profile: "driving-car"                              # driving-car, cycling-regular, foot-walking
 ```
 
 ## Next Steps
@@ -332,6 +339,31 @@ Then add an `OpenAIClient` subclass that implements the same `extract_job_propos
 
 - Make `data/cv.md` and `data/expectations.md` as detailed as possible — the quality of matching depends directly on these files
 - Try a larger Ollama model like `mistral:7b` or `qwen2.5:7b` for better extraction and reasoning
+
+### Commute calculation
+
+When enabled, the tool calculates travel time between your home address and each job's location using [OpenRouteService](https://openrouteservice.org) (free, 2000 requests/day). The commute info is:
+
+- Injected into the expectations matching prompt so the LLM can evaluate commute threshold
+- Stored in the database and displayed in the dashboard below **Location**
+
+**Setup:**
+
+1. Sign up at https://openrouteservice.org/dev/#/signup and get a free API key
+2. Add the key to `data/private/.env`:
+   ```
+   OPENROUTESERVICE_API_KEY=your_key_here
+   ```
+3. Edit `config.yaml`:
+   ```yaml
+   commute:
+     enabled: true
+     home_address: "Achères, Yvelines, France"
+     api_key: "${OPENROUTESERVICE_API_KEY}"
+     profile: "driving-car"     # or cycling-regular, foot-walking
+   ```
+
+The `.env` file is re-read on every scan — no restart needed when you change the key.
 
 ### Scheduled scanning
 

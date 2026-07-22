@@ -225,6 +225,9 @@ def render_detail(row: pd.Series, db_path: str):
         st.write(f"**Date:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
         st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
         st.write(f"**Location:** {row.get('location') or 'N/A'}")
+        commute = row.get("commute_info", "")
+        if commute:
+            st.write(f"**Commute:** {commute}")
 
         resp = row.get("job_responsibilities_summary", "")
         req = row.get("job_requirements_summary", "")
@@ -296,7 +299,7 @@ def render_detail(row: pd.Series, db_path: str):
         with st.spinner("Re-fetching job description and re-analyzing..."):
             config = load_config()
             llm = LlmClient(config)
-            result = refetch_single_job(job_url, llm)
+            result = refetch_single_job(job_url, llm, config)
             repo = JobRepository(db_path)
             repo.update_match_results(record_id, result)
             repo.close()

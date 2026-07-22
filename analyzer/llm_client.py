@@ -156,8 +156,8 @@ class LlmClient:
         user = build_match_user_prompt(job_description, "resume", self._cv or "")
         return self._chat(RESUME_MATCH_PROMPT, user)
 
-    def match_expectations(self, job_description: str) -> dict[str, Any]:
-        user = build_match_user_prompt(job_description, "expectations", self._expectations or "")
+    def match_expectations(self, job_description: str, commute_info: str = "") -> dict[str, Any]:
+        user = build_match_user_prompt(job_description, "expectations", self._expectations or "", commute_info)
         return self._chat(EXPECTATIONS_MATCH_PROMPT, user)
 
     def summarize_job(self, job_description: str) -> dict[str, Any]:

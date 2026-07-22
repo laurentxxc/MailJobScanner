@@ -25,3 +25,9 @@ gmail:
   scan_label: "Job Alerts"     # Gmail label to search for job emails
   done_label: "JobScan/Done"   # Gmail label applied after processing
   poll_interval_seconds: 300
+
+commute:
+  enabled: true
+  home_address: "Achères, Yvelines, France"
+  api_key: "${OPENROUTESERVICE_API_KEY}"
+  profile: "driving-car"       # driving-car, cycling-regular, foot-walking

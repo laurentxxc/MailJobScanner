@@ -53,6 +53,7 @@ class JobRepository:
             "job_responsibilities_summary TEXT DEFAULT ''",
             "job_requirements_summary TEXT DEFAULT ''",
             "job_technology_domains TEXT DEFAULT ''",
+            "commute_info TEXT DEFAULT ''",
             "message_id TEXT DEFAULT ''",
         ]:
             try:
@@ -71,9 +72,9 @@ class JobRepository:
                 resume_match_level, resume_match_summary,
                 expectations_match_level, expectations_match_summary,
                 job_responsibilities_summary, job_requirements_summary,
-                job_technology_domains,
+                job_technology_domains, commute_info,
                 error, status, notes, message_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.email_subject,
@@ -91,6 +92,7 @@ class JobRepository:
                 record.job_responsibilities_summary,
                 record.job_requirements_summary,
                 record.job_technology_domains,
+                record.commute_info,
                 record.error,
                 record.status,
                 record.notes,
@@ -144,6 +146,7 @@ class JobRepository:
                 job_responsibilities_summary = ?,
                 job_requirements_summary = ?,
                 job_technology_domains = ?,
+                commute_info = ?,
                 job_title = COALESCE(?, job_title),
                 company = COALESCE(?, company),
                 salary = COALESCE(?, salary),
@@ -158,6 +161,7 @@ class JobRepository:
             results.get("job_responsibilities_summary", ""),
             results.get("job_requirements_summary", ""),
             results.get("job_technology_domains", ""),
+            results.get("commute_info", ""),
             title,
             company,
             salary,
