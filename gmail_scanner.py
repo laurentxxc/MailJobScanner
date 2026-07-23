@@ -106,13 +106,16 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
         skipped = 0
         start_time = time.time()
 
-        uid_iter = tqdm(uids, unit="mail", disable=not progress, dynamic_ncols=True)
+        uid_iter = tqdm(uids, unit="mail", position=0, disable=not progress, dynamic_ncols=True)
         for uid in uid_iter:
             uid_str = uid.decode()
 
             _, msg_data = mail.uid("fetch", uid_str, "(RFC822)")
             if not msg_data or not msg_data[0]:
-                logger.warning("Failed to fetch uid %s", uid_str)
+                if progress:
+                    tqdm.write(f"Failed to fetch uid {uid_str}")
+                else:
+                    logger.warning("Failed to fetch uid %s", uid_str)
                 continue
 
             raw_email = msg_data[0][1]
@@ -123,7 +126,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                 tmp_path = tmp.name
 
             try:
-                result = process_eml(tmp_path, config, llm, repo)
+                result = process_eml(tmp_path, config, llm, repo, progress=progress, bar_position=1 if progress else 0)
                 if result.get("skipped"):
                     skipped += 1
                 else:
@@ -133,7 +136,10 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                     _apply_label(mail, uid_str, done_label, scan_label)
 
             except Exception as e:
-                logger.error("Failed to process uid %s: %s", uid_str, e)
+                if progress:
+                    tqdm.write(f"Failed to process uid {uid_str}: {e}")
+                else:
+                    logger.error("Failed to process uid %s: %s", uid_str, e)
             finally:
                 try:
                     os.unlink(tmp_path)
@@ -145,7 +151,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                 remaining = total - done
                 elapsed = time.time() - start_time
                 uid_iter.set_description(
-                    f"{processed} done / {skipped} skip / {remaining} left | {elapsed:.0f}s"
+                    f"Emails: {processed} done / {skipped} skip / {remaining} left | {elapsed:.0f}s"
                 )
 
         if progress:

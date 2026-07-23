@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import sys
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import yaml
 import trafilatura
 import requests
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 from analyzer.llm_client import LlmClient
 from analyzer.commute import get_commute_info
@@ -161,7 +163,7 @@ def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> 
         "location": job_summary.get("location", "") if job_summary else "",
     }
 
-def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository, dry_run: bool = False) -> dict:
+def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository, dry_run: bool = False, progress: bool = False, bar_position: int = 0) -> dict:
     email_data = parse_eml(filepath)
 
     message_id = email_data.get("message_id", "")
@@ -178,8 +180,12 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
 
     logger.info("Found %d proposals", len(proposals))
     has_high_match = False
+    errors = 0
+    loop_start = time.time()
 
-    for prop in proposals:
+    prop_iter = tqdm(proposals, unit="job", position=bar_position, leave=False,
+                     disable=not progress, dynamic_ncols=True)
+    for prop in prop_iter:
         title = prop.get("title", "Unknown")
         url = prop.get("url", "")
         company = prop.get("company", "Unknown")
@@ -289,6 +295,19 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
         if rl == "High" and el == "High":
             has_high_match = True
 
+        if error:
+            errors += 1
+
+        if progress:
+            done = prop_iter.n + 1
+            elapsed = time.time() - loop_start
+            prop_iter.set_description(
+                f"Jobs: {done} done / {errors} err / {len(proposals) - done} left | {elapsed:.0f}s"
+            )
+
+    if progress:
+        prop_iter.close()
+
     return {
         "file": filepath,
         "flagged": has_high_match,
@@ -313,7 +332,7 @@ def main():
             logger.warning("File not found: %s", eml_path)
             continue
         try:
-            result = process_eml(eml_path, config, llm, repo, dry_run=args.dry_run)
+            result = process_eml(eml_path, config, llm, repo, dry_run=args.dry_run, progress=True)
             print(json.dumps(result))
         except Exception as e:
             logger.error("Failed to process %s: %s", eml_path, e)
