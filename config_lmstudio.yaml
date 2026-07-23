@@ -17,13 +17,13 @@ email:
   temp_dir: /tmp/mailjobscan
 
 gmail:
-  enabled: false
-  email: ""
-  app_password: ""             # 16-char App Password, or use ${GMAIL_APP_PASSWORD}
+  enabled: true
+  email: "laurentxxc@gmail.com"             # Gmail email address
+  app_password: "${GMAIL_APP_PASSWORD}"             # 16-char App Password, or use ${GMAIL_APP_PASSWORD}
   imap_host: "imap.gmail.com"
   imap_port: 993
-  scan_label: "Job Alerts"     # Gmail label to search for job emails
-  done_label: "Scanned Jobs"   # label applied after processing — must NOT be a child of scan_label
+  scan_label: "RechercheEmploi/JobAlerts"     # Gmail label to search for job emails
+  done_label: "RechercheEmploi/ScannedJobs"   # label applied after processing — must NOT be a child of scan_label
                                 # (IMAP SELECT returns child labels too, causing re-scans)
   poll_interval_seconds: 300
 

@@ -34,6 +34,7 @@ This project has no tests, linter, or type checker configured. There is no CI. I
 - **AppleScript has a hardcoded `projectDir`** at the top of `scripts/mailjobscan.applescript`. If you move the project, edit that path and re-run `scripts/install.sh`.
 - **Gmail scanning requires an App Password** in `config.yaml` `gmail.app_password` (or env var `${GMAIL_APP_PASSWORD}`). Enable 2FA on your Google account first, then generate the App Password at https://myaccount.google.com/apppasswords.
 - **Gmail dedup uses two mechanisms**: `Message-ID` stored in the `message_id` column of `job_proposals`, AND a `JobScan/Done` Gmail label applied after processing. The DB check is the primary guard; the label is a secondary marker visible in Gmail UI.
+- **Gmail IMAP labels must not contain spaces** — Python's `imaplib` doesn't quote arguments, so labels with spaces cause `BAD` errors on COPY/STORE. Use CamelCase (e.g. `RechercheEmploi/JobAlerts`).
 
 ## Architecture (non-obvious)
 
@@ -44,4 +45,4 @@ This project has no tests, linter, or type checker configured. There is no CI. I
 - `dashboard.py` imports `refetch_single_job` from `main.py` — changing `main.py`'s function signatures will break the dashboard.
 - The Streamlit dashboard uses `@st.cache_data(ttl=60)` — data refreshes every 60 seconds at most.
 - The LLM client supports env var resolution in `api_key`: values like `${SOME_KEY}` are resolved from the environment or from `data/private/.env`.
-- `gmail_scanner.py` is a cross-platform alternative to the AppleScript trigger. It connects to Gmail via IMAP, searches a configurable label (default "Job Alerts"), checks the DB for already-processed `Message-ID`s, reuses `process_eml()` from `main.py` for the actual LLM work, and applies a `JobScan/Done` label as a secondary dedup marker.
+- `gmail_scanner.py` is a cross-platform alternative to the AppleScript trigger. It connects to Gmail via IMAP, searches a configurable label (default "RechercheEmploi/JobAlerts"), checks the DB for already-processed `Message-ID`s, reuses `process_eml()` from `main.py` for the actual LLM work, and applies a `RechercheEmploi/ScannedJobs` label as a secondary dedup marker.

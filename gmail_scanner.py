@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 import yaml
+from tqdm import tqdm
 
 from analyzer.llm_client import LlmClient
 from db.repository import JobRepository
@@ -63,16 +64,23 @@ def connect_gmail(gmail_cfg: dict) -> imaplib.IMAP4_SSL:
     return mail
 
 
-def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, label: str) -> bool:
+def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, done_label: str, scan_label: str) -> bool:
     try:
-        mail.uid("copy", uid, label)
+        typ, data = mail.uid("COPY", uid, done_label)
+        if typ != "OK":
+            logger.warning("COPY uid %s to '%s' failed: %s", uid, done_label, data)
+            return False
+
+        mail.select(scan_label)
+        mail.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
+        mail.expunge()
         return True
-    except imaplib.IMAP4.error as e:
-        logger.warning("Failed to apply label '%s' to uid %s: %s", label, uid, e)
+    except Exception as e:
+        logger.warning("Failed to move uid %s to '%s': %s", uid, done_label, e)
         return False
 
 
-def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient) -> int:
+def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient, progress: bool = False) -> int:
     Path("/tmp/mailjobscan").mkdir(parents=True, exist_ok=True)
 
     mail = connect_gmail(gmail_cfg)
@@ -80,7 +88,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
         scan_label = gmail_cfg["scan_label"]
         done_label = gmail_cfg.get("done_label", "JobScan/Done")
 
-        status, _ = mail.select(f'"{scan_label}"', readonly=True)
+        status, _ = mail.select(scan_label, readonly=True)
         if status != "OK":
             logger.error("Could not select label '%s': %s", scan_label, _)
             return 0
@@ -91,11 +99,15 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
             return 0
 
         uids = data[0].split()
-        logger.info("Found %d messages in '%s'", len(uids), scan_label)
+        total = len(uids)
+        logger.info("Found %d messages in '%s'", total, scan_label)
 
         processed = 0
+        skipped = 0
+        start_time = time.time()
 
-        for uid in uids:
+        uid_iter = tqdm(uids, unit="mail", disable=not progress, dynamic_ncols=True)
+        for uid in uid_iter:
             uid_str = uid.decode()
 
             _, msg_data = mail.uid("fetch", uid_str, "(RFC822)")
@@ -112,14 +124,13 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
 
             try:
                 result = process_eml(tmp_path, config, llm, repo)
-                processed += 1
-                logger.info(
-                    "Processed uid %s: %d proposals, flagged=%s",
-                    uid_str, result.get("total", 0), result.get("flagged", False),
-                )
+                if result.get("skipped"):
+                    skipped += 1
+                else:
+                    processed += 1
 
                 if done_label:
-                    _apply_label(mail, uid_str, done_label)
+                    _apply_label(mail, uid_str, done_label, scan_label)
 
             except Exception as e:
                 logger.error("Failed to process uid %s: %s", uid_str, e)
@@ -129,7 +140,18 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                 except OSError:
                     pass
 
-        logger.info("Scan complete: %d processed", processed)
+            if progress:
+                done = processed + skipped
+                remaining = total - done
+                elapsed = time.time() - start_time
+                uid_iter.set_description(
+                    f"{processed} done / {skipped} skip / {remaining} left | {elapsed:.0f}s"
+                )
+
+        if progress:
+            uid_iter.close()
+
+        logger.info("Scan complete: %d processed, %d skipped", processed, skipped)
         return processed
 
     finally:
@@ -166,7 +188,8 @@ def main():
                     logger.error("Scan cycle failed: %s", e)
                 time.sleep(interval)
         else:
-            scan_once(config, gmail_cfg, repo, llm)
+            logging.getLogger().setLevel(logging.WARNING)
+            scan_once(config, gmail_cfg, repo, llm, progress=True)
     finally:
         repo.close()
 

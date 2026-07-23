@@ -175,8 +175,8 @@ gmail:
   enabled: true
   email: "your.email@gmail.com"
   app_password: "abcd efgh ijkl mnop"   # 16-char App Password
-  scan_label: "Job Alerts"               # Gmail label containing job emails
-  done_label: "JobScan/Done"             # label applied after processing
+  scan_label: "RechercheEmploi/JobAlerts"   # no spaces — see Troubleshooting
+  done_label: "RechercheEmploi/ScannedJobs" # must NOT be a child of scan_label
   poll_interval_seconds: 300             # how often to check (daemon mode)
 ```
 
@@ -204,13 +204,13 @@ python gmail_scanner.py --daemon
 
 **How it works:**
 
-- `gmail_scanner.py` connects to Gmail IMAP and selects your `scan_label` (default: "Job Alerts")
+- `gmail_scanner.py` connects to Gmail IMAP and selects your `scan_label` (default: "RechercheEmploi/JobAlerts")
 - For each email, it checks the `Message-ID` header against the SQLite database — already-processed emails are skipped
 - New emails are written to `.eml` files in `/tmp/mailjobscan/` and passed to `main.py`'s `process_eml()` function
 - After processing, a `JobScan/Done` label is applied in Gmail as a secondary dedup marker (visible in Gmail UI)
 - Results appear in the Streamlit dashboard just like AppleScript-triggered scans
 
-> **Note:** The Gmail label `JobScan/Done` is created automatically on first
+> **Note:** The Gmail label `RechercheEmploi/ScannedJobs` is created automatically on first
 > use. You can remove it from emails in Gmail to re-scan them (the DB check
 > is the primary dedup guard). Keep `scan_label` and `done_label` as
 > **sibling** labels (not parent/child) — Gmail's IMAP `SELECT` includes
@@ -318,8 +318,8 @@ gmail:                                                # optional — Gmail IMAP 
   app_password: "${GMAIL_APP_PASSWORD}"               # 16-char App Password
   imap_host: "imap.gmail.com"
   imap_port: 993
-  scan_label: "Job Alerts"
-  done_label: "JobScan/Done"               # keep as sibling, not child of scan_label
+  scan_label: "RechercheEmploi/JobAlerts"             # no spaces — see Troubleshooting
+  done_label: "RechercheEmploi/ScannedJobs"           # keep as sibling, not child of scan_label
   poll_interval_seconds: 300
 
 commute:                                              # optional — commute time calculation
@@ -460,3 +460,19 @@ Some job portals block automated requests. The tool falls back from `trafilatura
 ```bash
 sqlite3 jobscan.db "SELECT job_title, error FROM job_proposals WHERE error IS NOT NULL;"
 ```
+
+### Gmail IMAP label names must not contain spaces
+
+Python's `imaplib` does not properly quote IMAP command arguments. When `scan_label` or `done_label` contains spaces (e.g. `Recherche Emploi/Job Alerts`), the IMAP `COPY` and `STORE` commands are sent unquoted, which causes the Gmail server to reject them with `BAD [Could not parse command]`.
+
+**Workaround:** use label names without spaces. Replace spaces with CamelCase or hyphens:
+
+```yaml
+gmail:
+  scan_label: "RechercheEmploi/JobAlerts"       # no spaces
+  done_label: "RechercheEmploi/ScannedJobs"     # no spaces
+```
+
+Then rename the labels in Gmail to match (Gmail → Settings → Labels).
+
+This also applies to `done_label` — the label move after processing will fail silently if it contains spaces.

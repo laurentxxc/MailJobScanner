@@ -5,3 +5,4 @@ jobscan.db
 data/private/
 .DS_Store
 .dashboard.pid
+tests/

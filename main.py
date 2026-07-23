@@ -187,6 +187,7 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
         location = prop.get("location", "Unknown")
 
         jd_text = None
+        job_summary = None
         resume_match = None
         expectations_match = None
         error = None
@@ -199,7 +200,6 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                 error = f"Login page detected at {url}"
                 jd_text = None
             if jd_text:
-                job_summary = None
                 try:
                     job_summary = llm.summarize_job(jd_text)
                     logger.info("Job summary for '%s': responsibilities extracted", title)
