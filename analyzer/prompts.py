@@ -24,17 +24,21 @@ field — do not add any extra text before or after it.
 RESUME_MATCH_PROMPT = """\
 You are a strict technical recruiter evaluating skills and experience match. The evaluation is based in the context of the job description and the candidate's resume. 
 
+IMPORTANT RULES — These override skill match:
+- If the job requires permanent relocation to a different country (not occasional travel), score ≤ 2 (Low)
+- If the seniority level required (e.g. Staff/Principal/Director) is 2+ levels above or below the candidate's proven level, score ≤ 5 (Medium)
+
 Score 1-4 (Low): 
-- there is less than 30% of skill overlap
+- less than 30% of skill overlap
 - the seniority level is wrong
-- there is missing critical experience or qualifications.
+- missing critical experience or qualifications
 Score 5-7 (Medium): 
 - 50-70% skill match with some gaps
-- plausible but not ideal.
+- plausible but not ideal
 Score 8-10 (High): 
-- 80%+ skill match
+- 90%+ skill match (not 80%)
 - the required seniority is aligned
-- the candidate has relevant domain experience.
+- the candidate has relevant domain experience
 
 Output JSON with exactly these fields:
 - "score": integer 1-10
@@ -55,9 +59,32 @@ Key criteria (in order of importance):
 4. Company stage and culture — compatible with what the candidate wants?
 5. Career growth — does the role offer what the candidate seeks?
 
+HARD DEAL-BREAKERS (score must be ≤ 2, level = Low):
+- Salary mentioned and below 70% of candidate's expected range
+- Location is in a different country and not fully remote
+- The job explicitly requires relocation to another continent
+
+Score 1-4 (Low): 
+- salary or location is a deal-breaker (see rules above)
+- both salary and location are not mentioned (uncertainty rule)
+Score 5-7 (Medium): 
+- salary range partially matches (70-90% of expected)
+- location compatible (remote or within same region)
+- most other criteria are satisfactory
+Score 8-10 (High): 
+- salary range matches 90%+ of expectations
+- location is ideal (remote-first or same city)
+- industry, preferred technology domains, culture, and growth all align
+
+COMMUTE DATA (when provided):
+The candidate's home is at a fixed location. Pre-calculated commute information
+to the job location is provided in the user prompt below. Evaluate this against
+the candidate's commute threshold in their expectations file. If the commute
+exceeds the stated maximum, this is a deal-breaker (score ≤ 4, level = Low).
+
 Output JSON with exactly these fields:
 - "score": integer 1-10
-- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10. Salary mismatch or location deal-breaker = Low, regardless of other factors.
+- "level": "Low" if score <= 4, "Medium" if 5-7, "High" if 8-10
 - "matching_aspects": list of aligned preferences
 - "conflicting_aspects": list of mismatches or deal-breakers
 - "summary": 2-3 sentence explanation
@@ -93,14 +120,17 @@ def build_extraction_user_prompt(email_body: str) -> str:
     return f"Email content:\n\n{email_body}"
 
 
-def build_match_user_prompt(job_description: str, doc_type: str, candidate_text: str) -> str:
+def build_match_user_prompt(job_description: str, doc_type: str, candidate_text: str, commute_info: str = "") -> str:
     doc_label = "Resume / Professional Experience" if doc_type == "resume" else "Job Expectations & Motivation"
-    return (
+    prompt = (
         f"Job Description:\n{job_description}\n\n"
         f"Candidate {doc_label}:\n{candidate_text}\n\n"
         f"Analyze the match between this job and the candidate's {doc_label.lower()}. "
         "Be honest and specific about what matches and what doesn't."
     )
+    if commute_info:
+        prompt += f"\n\nCommute information: {commute_info}"
+    return prompt
 
 
 JOB_SUMMARY_PROMPT = """\
@@ -116,6 +146,11 @@ Then summarize concisely (2-3 sentences each):
 5. Responsibilities — what the role involves day-to-day
 6. Requirements — qualifications, skills, and experience needed
 
+Then identify (comma-separated list):
+7. Technology Domains — technology areas (e.g. "Python, React, PostgreSQL, AWS, Docker")
+   and functional domains (e.g. "fintech, payments, data pipelines, real-time systems")
+   covered by the role. List the most prominent ones, max 10-12 items.
+
 Output JSON with exactly these fields:
 - "title": the job title
 - "company": the company name
@@ -123,6 +158,7 @@ Output JSON with exactly these fields:
 - "location": location or null
 - "responsibilities": concise summary of key responsibilities
 - "requirements": concise summary of key requirements
+- "technology_domains": comma-separated list of technology areas and functional domains
 """
 
 

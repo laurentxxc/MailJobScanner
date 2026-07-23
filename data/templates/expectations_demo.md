@@ -9,9 +9,9 @@
 - [ ] Hybrid
 - [ ] On-site
 
-## Preferred Industries
-- Industry 1
-- Industry 2
+## Preferred Technology domains
+- Technology domain 1
+- Technology domain 2
 
 ## Must-Haves
 - Requirement 1
