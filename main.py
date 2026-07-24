@@ -6,6 +6,7 @@ import re
 import sys
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -109,6 +110,16 @@ def is_login_page(text: str, url: str = "") -> bool:
         return True
     return count >= 3
 
+def _match_resume_and_expectations(llm: LlmClient, jd_text: str, commute_info: str = "") -> tuple[dict, dict]:
+    """Run match_resume and match_expectations in parallel."""
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        resume_fut = pool.submit(llm.match_resume, jd_text)
+        expectations_fut = pool.submit(llm.match_expectations, jd_text, commute_info)
+        resume_match = resume_fut.result()
+        expectations_match = expectations_fut.result()
+    return resume_match, expectations_match
+
+
 def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> dict:
     jd_text = fetch_job_description(url) if url else None
     if not jd_text:
@@ -139,12 +150,9 @@ def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> 
 
     resume_match = expectations_match = None
     try:
-        resume_match = llm.match_resume(jd_text)
+        resume_match, expectations_match = _match_resume_and_expectations(llm, jd_text, commute_info)
     except Exception as e:
         resume_match = {"level": "Error", "summary": str(e)}
-    try:
-        expectations_match = llm.match_expectations(jd_text, commute_info)
-    except Exception as e:
         expectations_match = {"level": "Error", "summary": str(e)}
 
     return {
@@ -233,21 +241,18 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                     )
 
                 try:
-                    resume_match = llm.match_resume(jd_text)
+                    resume_match, expectations_match = _match_resume_and_expectations(
+                        llm, jd_text, commute_info
+                    )
                     logger.info("Resume match for '%s': %s", title, resume_match.get("level", "?"))
-                except Exception as e:
-                    logger.warning("Resume match failed for '%s': %s", title, e)
-                    resume_match = {"level": "Error", "summary": str(e)}
-
-                try:
-                    expectations_match = llm.match_expectations(jd_text, commute_info)
                     logger.info(
                         "Expectations match for '%s': %s",
                         title,
                         expectations_match.get("level", "?"),
                     )
                 except Exception as e:
-                    logger.warning("Expectations match failed for '%s': %s", title, e)
+                    logger.warning("Match failed for '%s': %s", title, e)
+                    resume_match = {"level": "Error", "summary": str(e)}
                     expectations_match = {"level": "Error", "summary": str(e)}
             else:
                 error = f"Could not fetch job description from {url}"
