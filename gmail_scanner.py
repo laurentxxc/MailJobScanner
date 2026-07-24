@@ -64,20 +64,44 @@ def connect_gmail(gmail_cfg: dict) -> imaplib.IMAP4_SSL:
     return mail
 
 
-def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, done_label: str, scan_label: str) -> bool:
+def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, done_label: str, scan_label: str, gmail_cfg: dict | None = None) -> imaplib.IMAP4_SSL | None:
+    """Apply done_label to a message and delete from scan_label.
+
+    Returns the (possibly reconnected) mail object, or None if the move failed.
+    """
     try:
         typ, data = mail.uid("COPY", uid, done_label)
         if typ != "OK":
             logger.warning("COPY uid %s to '%s' failed: %s", uid, done_label, data)
-            return False
+            return mail
 
         mail.select(scan_label)
         mail.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
         mail.expunge()
-        return True
+        return mail
     except Exception as e:
-        logger.warning("Failed to move uid %s to '%s': %s", uid, done_label, e)
-        return False
+        if not gmail_cfg:
+            logger.warning("Failed to move uid %s to '%s': %s", uid, done_label, e)
+            return mail
+
+        logger.info("Connection lost during label move for uid %s, reconnecting...", uid)
+        try:
+            mail.logout()
+        except Exception:
+            pass
+        try:
+            mail = connect_gmail(gmail_cfg)
+            typ, data = mail.uid("COPY", uid, done_label)
+            if typ != "OK":
+                logger.warning("Retry COPY uid %s to '%s' failed: %s", uid, done_label, data)
+                return mail
+            mail.select(scan_label)
+            mail.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
+            mail.expunge()
+            return mail
+        except Exception as e2:
+            logger.warning("Retry move uid %s failed: %s", uid, e2)
+            return mail
 
 
 def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient, progress: bool = False) -> int:
@@ -110,6 +134,20 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
         for uid in uid_iter:
             uid_str = uid.decode()
 
+            try:
+                mail.noop()
+            except Exception:
+                if progress:
+                    tqdm.write(f"Connection lost, reconnecting...")
+                else:
+                    logger.info("Connection lost, reconnecting...")
+                try:
+                    mail.logout()
+                except Exception:
+                    pass
+                mail = connect_gmail(gmail_cfg)
+                mail.select(scan_label, readonly=True)
+
             _, msg_data = mail.uid("fetch", uid_str, "(RFC822)")
             if not msg_data or not msg_data[0]:
                 if progress:
@@ -133,7 +171,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                     processed += 1
 
                 if done_label:
-                    _apply_label(mail, uid_str, done_label, scan_label)
+                    mail = _apply_label(mail, uid_str, done_label, scan_label, gmail_cfg) or mail
 
             except Exception as e:
                 if progress:
