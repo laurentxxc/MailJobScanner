@@ -40,14 +40,28 @@ def launch():
         stop()
 
 
+def _is_our_pid(pid):
+    try:
+        out = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+    except OSError:
+        return False
+    return "streamlit" in out and str(ROOT) in out
+
+
 def stop():
     if PID_FILE.exists():
         pid = int(PID_FILE.read_text().strip())
-        try:
-            os.kill(pid, signal.SIGTERM)
-            time.sleep(0.5)
-        except ProcessLookupError:
-            pass
+        if _is_our_pid(pid):
+            try:
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(0.5)
+            except (ProcessLookupError, PermissionError):
+                pass
         PID_FILE.unlink(missing_ok=True)
 
 
