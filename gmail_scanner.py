@@ -146,7 +146,13 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                 except Exception:
                     pass
                 mail = connect_gmail(gmail_cfg)
-                mail.select(scan_label, readonly=True)
+                status, _ = mail.select(scan_label, readonly=True)
+                if status != "OK":
+                    if progress:
+                        tqdm.write(f"Could not re-select '{scan_label}' after reconnect, aborting scan")
+                    else:
+                        logger.error("Could not re-select '%s' after reconnect", scan_label)
+                    break
 
             _, msg_data = mail.uid("fetch", uid_str, "(RFC822)")
             if not msg_data or not msg_data[0]:
