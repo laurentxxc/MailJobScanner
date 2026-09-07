@@ -22,7 +22,7 @@ Scan job alert emails from Apple Mail, extract job proposals, analyze them again
                    │ writes .eml files to /tmp/mailjobscan/
                    ▼
 ┌─────────────────────────────────────────────────────┐
-│                   main.py                            │
+│                   main.py + core/engine.py           │
 │                                                      │
 │  1. Parse .eml → subject, from, body + URLs         │
 │  2. Send body to Ollama → list of job proposals     │
@@ -47,22 +47,28 @@ Scan job alert emails from Apple Mail, extract job proposals, analyze them again
 ```
 MailJobScan/
 ├── config.yaml                 # LLM endpoint, model, file paths
-├── main.py                     # Entry point / orchestrator
-├── scanner/
-│   └── email_parser.py         # .eml → plain text with URLs preserved
-├── analyzer/
-│   ├── llm_client.py           # Ollama API client (swap for remote)
-│   └── prompts.py              # System prompts for extraction & matching
-├── db/
-│   ├── models.py               # JobProposalRecord dataclass
-│   └── repository.py           # SQLite CRUD operations
-├── data/
-│   ├── cv.md                   # ← Your resume / experience (fill in)
-│   └── expectations.md         # ← Your job preferences (fill in)
-├── scripts/
-│   ├── mailjobscan.applescript # Source for the Mail Script
-│   └── install.sh              # Compiles & installs the script
-└── jobscan.db                  # Auto-created on first run
+├── main.py                     # Thin CLI entry point (AppleScript)
+├── gmail_fetcher.py            # Gmail IMAP fetcher (cross-platform)
+├── dashboard.py                # Streamlit dashboard
+├── config.py                   # Shared config / env resolution
+├── core/                       # Core packages (layered, independent)
+│   ├── engine.py               # Orchestrator: email → LLM → SQLite → flag
+│   ├── parsing/
+│   │   └── email_parser.py     # .eml → plain text with URLs preserved
+│   ├── llm/
+│   │   ├── llm_client.py       # Ollama/OpenAI-compatible API client
+│   │   ├── prompts.py          # System prompts for extraction & matching
+│   │   └── commute.py          # Commute via OpenRouteService
+│   └── storage/
+│       ├── models.py           # JobProposalRecord dataclass
+│       └── repository.py       # SQLite CRUD operations
+├── MacOS/
+│   ├── MailJobScan.command     # Double-click dashboard launcher
+│   ├── launcher.py             # Streamlit subprocess manager
+│   └── Scripts/
+│       ├── mailjobscan.applescript
+│       └── install.sh          # Compiles & installs the script
+└── __private__/                # gitignored user data (CV, expectations, db)
 ```
 
 > **Note on profile files:** `data/cv.md` and `data/expectations.md` are
@@ -196,15 +202,15 @@ gmail:
 source .venv/bin/activate
 
 # Single scan — processes all unscanned emails and exits
-python gmail_scanner.py
+python gmail_fetcher.py
 
 # Daemon mode — polls Gmail every N seconds (from config)
-python gmail_scanner.py --daemon
+python gmail_fetcher.py --daemon
 ```
 
 **How it works:**
 
-- `gmail_scanner.py` connects to Gmail IMAP and selects your `scan_label` (default: "RechercheEmploi/JobAlerts")
+- `gmail_fetcher.py` connects to Gmail IMAP and selects your `scan_label` (default: "RechercheEmploi/JobAlerts")
 - For each email, it checks the `Message-ID` header against the SQLite database — already-processed emails are skipped
 - New emails are written to `.eml` files in `/tmp/mailjobscan/` and passed to `main.py`'s `process_eml()` function
 - After processing, a `JobScan/Done` label is applied in Gmail as a secondary dedup marker (visible in Gmail UI)
@@ -333,7 +339,7 @@ commute:                                              # optional — commute tim
 
 ### Switch to a remote LLM
 
-The `LlmClient` class in `analyzer/llm_client.py` is designed to be subclassed. To use OpenAI:
+The `LlmClient` class in `core/llm/llm_client.py` is designed to be subclassed. To use OpenAI:
 
 ```yaml
 llm:
@@ -379,7 +385,7 @@ The `.env` file is re-read on every scan — no restart needed when you change t
 The Gmail IMAP scanner supports continuous polling out of the box:
 
 ```bash
-python gmail_scanner.py --daemon    # polls every N seconds (from config)
+python gmail_fetcher.py --daemon    # polls every N seconds (from config)
 ```
 
 See [Via Gmail IMAP](#via-gmail-imap-cross-platform-no-macos-required) above for setup instructions. For non-Gmail providers, adapt the IMAP settings in `config.yaml`.

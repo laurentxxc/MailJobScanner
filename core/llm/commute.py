@@ -129,7 +129,7 @@ if __name__ == "__main__":
     else:
         home = "Achères, Yvelines, France"
         job = sys.argv[1] if len(sys.argv) == 2 else "Paris, France"
-        print(f"Usage: python -m analyzer.commute <job_location> [home_address]")
+        print(f"Usage: python -m core.llm.commute <job_location> [home_address]")
         print(f"Using defaults: home={home}, job={job}\n")
 
     print(f"Geocoding '{home}'...")

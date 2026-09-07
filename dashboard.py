@@ -6,10 +6,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from analyzer.llm_client import LlmClient
+from core.engine import refetch_single_job
+from core.llm.llm_client import LlmClient
+from core.storage.repository import JobRepository
 from config import load_config
-from db.repository import JobRepository
-from main import refetch_single_job
 
 # helper function
 def _strikethrough(val):

@@ -2,7 +2,7 @@
 """Shared configuration loading and environment resolution.
 
 Consolidates config logic previously duplicated across main.py, dashboard.py,
-gmail_scanner.py, analyzer/llm_client.py and analyzer/commute.py.
+gmail_fetcher.py, core/llm/llm_client.py and core/llm/commute.py.
 """
 import json
 import logging

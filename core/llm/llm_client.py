@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import requests
 
-from analyzer.prompts import (
+from core.llm.prompts import (
     EXTRACTION_SYSTEM_PROMPT,
     RESUME_MATCH_PROMPT,
     EXPECTATIONS_MATCH_PROMPT,

@@ -16,7 +16,7 @@ Requires Python 3.11+ and an LLM backend (Ollama or LM Studio running locally). 
 ## Running
 
 - **Scan emails (AppleScript):** `python main.py /path/to/email.eml` (takes .eml files, outputs JSON to stdout)
-- **Scan emails (Gmail IMAP):** `python gmail_scanner.py` (single run) or `python gmail_scanner.py --daemon` (polls every N seconds)
+- **Scan emails (Gmail IMAP):** `python gmail_fetcher.py` (single run) or `python gmail_fetcher.py --daemon` (polls every N seconds)
 - **Dashboard:** `source .venv/bin/activate && streamlit run dashboard.py` (opens at localhost:8501)
 - **Dashboard shortcut:** double-click `MacOS/MailJobScan.command` (uses `MacOS/launcher.py` internally)
 - **Install AppleScript:** `bash MacOS/Scripts/install.sh` (compiles + copies to `~/Library/Scripts/Applications/Mail/`)
@@ -38,11 +38,12 @@ This project has no tests, linter, or type checker configured. There is no CI. I
 
 ## Architecture (non-obvious)
 
-- `main.py` is the CLI orchestrator. It parses .eml, calls LLM for extraction, fetches job URLs, calls LLM for matching, writes to SQLite, returns `{"flagged": bool}` JSON to stdout for AppleScript to consume.
-- `analyzer/llm_client.py` handles all LLM calls. It auto-detects Ollama vs OpenAI-compatible APIs based on `config.yaml` `llm.provider`. Rate-limited providers (Groq, OpenAI, xAI) get `response_format: json_object`. There's a 4-second sleep before non-Ollama API calls.
-- `analyzer/prompts.py` contains URL shortening logic: long URLs in emails are replaced with `http://placeholder/track/N` before sending to the LLM to reduce token usage, then restored after extraction.
-- `db/repository.py` handles schema migrations inline via `ALTER TABLE ADD COLUMN` with silent error swallowing — this is intentional for incremental schema evolution.
-- `dashboard.py` imports `refetch_single_job` from `main.py` — changing `main.py`'s function signatures will break the dashboard.
+- `main.py` is a thin CLI entry point. It parses .eml paths, then delegates to `core/engine.py`. The `core/engine.py` module is the real orchestrator: it parses the email, calls the LLM for extraction, fetches job URLs, calls the LLM for matching, writes to SQLite, and returns `{"flagged": bool}` JSON for AppleScript to consume.
+- `core/llm/llm_client.py` handles all LLM calls. It auto-detects Ollama vs OpenAI-compatible APIs based on `config.yaml` `llm.provider`. Rate-limited providers (Groq, OpenAI, xAI) get `response_format: json_object`. There's a 4-second sleep before non-Ollama API calls.
+- `core/llm/prompts.py` contains URL shortening logic: long URLs in emails are replaced with `http://placeholder/track/N` before sending to the LLM to reduce token usage, then restored after extraction.
+- `core/storage/repository.py` handles schema migrations inline via `ALTER TABLE ADD COLUMN` with silent error swallowing — this is intentional for incremental schema evolution.
+- `dashboard.py` imports `refetch_single_job` from `core/engine.py` — changing `core/engine.py`'s function signatures will break the dashboard.
 - The Streamlit dashboard uses `@st.cache_data(ttl=60)` — data refreshes every 60 seconds at most.
-- The LLM client supports env var resolution in `api_key`: values like `${SOME_KEY}` are resolved from the environment or from `data/private/.env`.
-- `gmail_scanner.py` is a cross-platform alternative to the AppleScript trigger. It connects to Gmail via IMAP, searches a configurable label (default "RechercheEmploi/JobAlerts"), checks the DB for already-processed `Message-ID`s, reuses `process_eml()` from `main.py` for the actual LLM work, and applies a `RechercheEmploi/ScannedJobs` label as a secondary dedup marker.
+- The LLM client supports env var resolution in `api_key`: values like `${SOME_KEY}` are resolved from the environment or from `__private__/.env`.
+- `gmail_fetcher.py` is a cross-platform alternative to the AppleScript trigger. It connects to Gmail via IMAP, searches a configurable label (default "RechercheEmploi/JobAlerts"), checks the DB for already-processed `Message-ID`s, reuses `process_eml()` from `core/engine.py` for the actual LLM work, and applies a `RechercheEmploi/ScannedJobs` label as a secondary dedup marker.
+- The three packages under `core/` are layered and independent: `core/parsing/` (email → data), `core/llm/` (LLM analysis + commute), `core/storage/` (SQLite persistence). Only `core/engine.py` orchestrates across all three; `config.py` at the project root is the shared leaf imported by the entry points (`main.py`, `gmail_fetcher.py`, `dashboard.py`) and the packages.

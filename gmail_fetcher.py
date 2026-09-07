@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Gmail IMAP scanner — polls a Gmail label for job alert emails,
+Gmail IMAP fetcher — polls a Gmail label for job alert emails,
 processes them via the existing LLM pipeline, and marks them done.
 
 Usage:
-    python gmail_scanner.py              # single run
-    python gmail_scanner.py --daemon     # poll every N seconds (from config)
+    python gmail_fetcher.py              # single run
+    python gmail_fetcher.py --daemon     # poll every N seconds (from config)
 """
 import argparse
 import imaplib
@@ -19,10 +19,10 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analyzer.llm_client import LlmClient
-from config import resolve_env_var
-from db.repository import JobRepository
-from main import load_config, process_eml
+from core.engine import process_eml
+from core.llm.llm_client import LlmClient
+from core.storage.repository import JobRepository
+from config import load_config, resolve_env_var
 
 logging.basicConfig(
     level=logging.INFO,
@@ -194,7 +194,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gmail job alert scanner")
+    parser = argparse.ArgumentParser(description="Gmail job alert fetcher")
     parser.add_argument("--daemon", action="store_true", help="Poll continuously at configured interval")
     args = parser.parse_args()
 
