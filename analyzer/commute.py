@@ -6,10 +6,10 @@ Geocodes two addresses and returns travel time + distance
 using ORS directions API.
 """
 import logging
-import os
-from pathlib import Path
 
 import requests
+
+from config import resolve_env_var
 
 logger = logging.getLogger(__name__)
 
@@ -21,24 +21,6 @@ _PROFILE_MAP = {
     "cycling": "cycling-regular",
     "walking": "foot-walking",
 }
-
-
-def _resolve_env_var(val: str) -> str | None:
-    if val.startswith("${") and val.endswith("}"):
-        key = val[2:-1]
-        result = os.environ.get(key)
-        if result:
-            return result
-        dotenv = Path(__file__).parent.parent / "data" / "private" / ".env"
-        if dotenv.exists():
-            for line in dotenv.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, _, v = line.partition("=")
-                    if k.strip() == key:
-                        return v.strip()
-        return None
-    return val or None
 
 
 def geocode(address: str, api_key: str) -> tuple[float, float] | None:
@@ -86,7 +68,7 @@ def get_commute_info(
     Calculate commute info between home and job location.
     Returns a string like "45 min (32 km)" or empty string on failure.
     """
-    resolved_key = _resolve_env_var(api_key) if api_key else None
+    resolved_key = resolve_env_var(api_key) if api_key else None
     if not resolved_key:
         logger.warning("No ORS API key configured — skipping commute calculation")
         return ""
@@ -137,7 +119,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     key_env = "${OPENROUTESERVICE_API_KEY}"
-    api_key = _resolve_env_var(key_env)
+    api_key = resolve_env_var(key_env)
     if not api_key:
         print("Set OPENROUTESERVICE_API_KEY in data/private/.env or env")
         sys.exit(1)

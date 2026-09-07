@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import yaml
 
 from analyzer.llm_client import LlmClient
+from config import load_config
 from db.repository import JobRepository
 from main import refetch_single_job
 
@@ -16,12 +16,6 @@ def _strikethrough(val):
     if isinstance(val, str) and val:
         return "\u0336".join(val) + "\u0336"
     return ""
-
-
-def load_config():
-    config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path) as f:
-        return yaml.safe_load(f)
 
 
 @st.cache_data(ttl=60)

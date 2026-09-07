@@ -9,7 +9,6 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import yaml
 import trafilatura
 import requests
 from bs4 import BeautifulSoup
@@ -17,6 +16,7 @@ from tqdm import tqdm
 
 from analyzer.llm_client import LlmClient
 from analyzer.commute import get_commute_info
+from config import load_config, load_linkedin_cookies
 from db.models import JobProposalRecord
 from db.repository import JobRepository
 from scanner.email_parser import parse_eml
@@ -27,30 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-def load_config() -> dict:
-    config_path = Path(__file__).parent / "config.yaml"
-    if not config_path.exists():
-        logger.error("config.yaml not found at %s", config_path)
-        sys.exit(1)
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-
-
-def _load_linkedin_cookies() -> dict:
-    config = load_config()
-    cookie_rel = config.get("paths", {}).get("linkedin_cookies", "data/private/linkedin_cookies.json")
-    cookie_path = Path(__file__).parent / cookie_rel
-    if not cookie_path.exists():
-        return {}
-    try:
-        with open(cookie_path, "r") as f:
-            data = json.load(f)
-        cookies = {k: v for k, v in data.items() if isinstance(v, str) and v.strip()}
-        return cookies
-    except Exception as e:
-        logger.warning("Failed to load LinkedIn cookies: %s", e)
-        return {}
 
 def fetch_job_description(url: str) -> str | None:
     # Normalize LinkedIn tracking URLs to clean job view URLs.
@@ -68,7 +44,7 @@ def fetch_job_description(url: str) -> str | None:
     # Export from Safari Developer Tools → Storage → Cookies → www.linkedin.com
     cookies = None
     if "linkedin.com" in parsed.netloc:
-        cookies = _load_linkedin_cookies()
+        cookies = load_linkedin_cookies()
         if cookies:
             logger.info("Using LinkedIn session cookies for authenticated fetch")
 

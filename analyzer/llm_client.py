@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -18,6 +17,7 @@ from analyzer.prompts import (
     restore_urls,
     shorten_urls,
 )
+from config import resolve_env_var
 
 logger = logging.getLogger(__name__)
 
@@ -30,28 +30,10 @@ class LlmClient:
         self.model = llm_cfg["model"]
         self.options = llm_cfg.get("options", {})
         raw_key = llm_cfg.get("api_key", "")
-        self.api_key = self._resolve_env_var(raw_key) if raw_key else None
+        self.api_key = resolve_env_var(raw_key) if raw_key else None
         self._cv: Optional[str] = None
         self._expectations: Optional[str] = None
         self._load_documents(config["paths"])
-
-    @staticmethod
-    def _resolve_env_var(val: str) -> str | None:
-        if val.startswith("${") and val.endswith("}"):
-            key = val[2:-1]
-            result = os.environ.get(key)
-            if result:
-                return result
-            dotenv = Path(__file__).parent.parent / "data" / "private" / ".env"
-            if dotenv.exists():
-                for line in dotenv.read_text().splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, _, v = line.partition("=")
-                        if k.strip() == key:
-                            return v.strip()
-            return None
-        return val or None
 
     def _load_documents(self, paths: dict):
         cv_path = Path(paths["cv"])

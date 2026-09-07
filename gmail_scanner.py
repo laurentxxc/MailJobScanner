@@ -17,10 +17,10 @@ import tempfile
 import time
 from pathlib import Path
 
-import yaml
 from tqdm import tqdm
 
 from analyzer.llm_client import LlmClient
+from config import resolve_env_var
 from db.repository import JobRepository
 from main import load_config, process_eml
 
@@ -32,30 +32,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _resolve_env_var(val: str) -> str | None:
-    if val.startswith("${") and val.endswith("}"):
-        key = val[2:-1]
-        result = os.environ.get(key)
-        if result:
-            return result
-        dotenv = Path(__file__).parent / "data" / "private" / ".env"
-        if dotenv.exists():
-            for line in dotenv.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, _, v = line.partition("=")
-                    if k.strip() == key:
-                        return v.strip()
-        return None
-    return val or None
-
-
 def connect_gmail(gmail_cfg: dict) -> imaplib.IMAP4_SSL:
     host = gmail_cfg["imap_host"]
     port = gmail_cfg.get("imap_port", 993)
     addr = gmail_cfg["email"]
     raw_pw = gmail_cfg.get("app_password", "")
-    password = _resolve_env_var(raw_pw) if raw_pw else None
+    password = resolve_env_var(raw_pw) if raw_pw else None
     if not password:
         raise ValueError("Gmail app_password is empty. Set it in config.yaml or via ${GMAIL_APP_PASSWORD}.")
     logger.info("Connecting to %s:%d as %s", host, port, addr)
