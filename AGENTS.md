@@ -18,8 +18,8 @@ Requires Python 3.11+ and an LLM backend (Ollama or LM Studio running locally). 
 - **Scan emails (AppleScript):** `python main.py /path/to/email.eml` (takes .eml files, outputs JSON to stdout)
 - **Scan emails (Gmail IMAP):** `python gmail_scanner.py` (single run) or `python gmail_scanner.py --daemon` (polls every N seconds)
 - **Dashboard:** `source .venv/bin/activate && streamlit run dashboard.py` (opens at localhost:8501)
-- **Dashboard shortcut:** double-click `MailJobScan.command` (uses `launcher.py` internally)
-- **Install AppleScript:** `bash scripts/install.sh` (compiles + copies to `~/Library/Scripts/Applications/Mail/`)
+- **Dashboard shortcut:** double-click `MacOS/MailJobScan.command` (uses `MacOS/launcher.py` internally)
+- **Install AppleScript:** `bash MacOS/Scripts/install.sh` (compiles + copies to `~/Library/Scripts/Applications/Mail/`)
 
 ## No test/lint/typecheck
 
@@ -29,9 +29,9 @@ This project has no tests, linter, or type checker configured. There is no CI. I
 
 - **`data/cv.md` and `data/expectations.md` are symlinks** pointing into `data/private/` (gitignored). After cloning, create your own files in `data/private/` or the symlinks will be broken and the LLM will get empty context. Templates exist in `data/templates/`.
 - **`jobscan.db` is gitignored** and auto-created on first run.
-- **`config.yaml` is the source of truth** for which LLM provider is active. Multiple `config_*.yaml` variants exist — copy the one you want to `config.yaml`. Current config points to `lmstudio` (not ollama as README sometimes implies).
+- **`config.yaml` is the source of truth** for which LLM provider is active. Copy `config.example.yaml` to `config.yaml` and adjust, or point `config.yaml` (a symlink) at your own private config. Current config points to `lmstudio` (not ollama as README sometimes implies).
 - **LinkedIn jobs require cookies** in `data/private/linkedin_cookies.json` (`li_at` + `JSESSIONID` from Safari). Without them, LinkedIn job pages return login walls.
-- **AppleScript has a hardcoded `projectDir`** at the top of `scripts/mailjobscan.applescript`. If you move the project, edit that path and re-run `scripts/install.sh`.
+- **AppleScript has a hardcoded `projectDir`** at the top of `MacOS/Scripts/mailjobscan.applescript`. If you move the project, edit that path and re-run `MacOS/Scripts/install.sh`.
 - **Gmail scanning requires an App Password** in `config.yaml` `gmail.app_password` (or env var `${GMAIL_APP_PASSWORD}`). Enable 2FA on your Google account first, then generate the App Password at https://myaccount.google.com/apppasswords.
 - **Gmail dedup uses two mechanisms**: `Message-ID` stored in the `message_id` column of `job_proposals`, AND a `JobScan/Done` Gmail label applied after processing. The DB check is the primary guard; the label is a secondary marker visible in Gmail UI.
 - **Gmail IMAP labels must not contain spaces** — Python's `imaplib` doesn't quote arguments, so labels with spaces cause `BAD` errors on COPY/STORE. Use CamelCase (e.g. `RechercheEmploi/JobAlerts`).

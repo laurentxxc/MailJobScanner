@@ -8,7 +8,7 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).parent.parent
 VENV_PYTHON = ROOT / ".venv" / "bin" / "python3"
 DASHBOARD = ROOT / "dashboard.py"
 PID_FILE = ROOT / ".dashboard.pid"

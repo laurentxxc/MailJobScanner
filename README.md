@@ -102,11 +102,11 @@ ollama serve          # start Ollama if not already running
 ollama list           # should show llama3.2 (or the model in config.yaml)
 
 # 5. Install the Mail Script
-bash scripts/install.sh
+bash MacOS/Scripts/install.sh
 
 #    This compiles the AppleScript and copies it to
 #    ~/Library/Scripts/Applications/Mail/mailjobscan.scpt
-#    If you moved the project, update projectDir in scripts/mailjobscan.applescript first.
+#    If you moved the project, update projectDir in MacOS/Scripts/mailjobscan.applescript first.
 ```
 
 ## Usage
@@ -242,9 +242,9 @@ Features:
 - **Detail panel** — click any proposal to see full match summaries, commute info, URL, salary, and location
 - **CSV export** — download filtered results
 
-#### macOS: MailJobScan.command
+#### macOS: MacOS/MailJobScan.command
 
-Double-click **MailJobScan.command** in the project folder to launch the dashboard:
+Double-click **`MacOS/MailJobScan.command`** in the project folder to launch the dashboard:
 
 - Opens a Terminal window showing Streamlit logs in real time
 - Browser opens automatically at `http://localhost:8501`
@@ -254,10 +254,10 @@ Double-click **MailJobScan.command** in the project folder to launch the dashboa
 The custom icon is applied automatically by `install.sh` (requires `fileicon`, installed via Homebrew if missing).
 
 ```bash
-bash scripts/install.sh
+bash MacOS/Scripts/install.sh
 ```
 
-> **Tip:** Drag `MailJobScan.command` to your Dock for one-click access.
+> **Tip:** Drag `MacOS/MailJobScan.command` to your Dock for one-click access.
 
 ## Workflow Diagram
 
@@ -430,9 +430,9 @@ ollama serve
 
 ### "AppleScript cannot find the project"
 
-If you moved the project directory, update `projectDir` at the top of `scripts/mailjobscan.applescript`, then recompile and reinstall:
+If you moved the project directory, update `projectDir` at the top of `MacOS/Scripts/mailjobscan.applescript`, then recompile and reinstall:
 ```bash
-bash scripts/install.sh
+bash MacOS/Scripts/install.sh
 ```
 
 ### "Python virtual environment not found"
