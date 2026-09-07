@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 jobscan.db
 data/private/
+__private__/
 .DS_Store
 .dashboard.pid
 tests/

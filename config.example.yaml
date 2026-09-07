@@ -1,0 +1,78 @@
+# =============================================================================
+# MailJobScan configuration
+# =============================================================================
+# HOW TO USE:
+#   1. Copy this file to `config.yaml`  (the actual config the app reads)
+#   2. Adjust the values to your needs
+#   3. Delete your copy of `config.example.yaml` or leave it as documentation
+#
+# REQUIRED sections: llm, paths, email  (keep them uncommented)
+# OPTIONAL sections: gmail, commute     (toggle via `enabled`)
+#
+# Values like ${ENV_VAR} are resolved from your shell environment, or from
+# `data/private/.env` if not found there.
+#
+# Supported LLM providers: ollama, lmstudio, groq, grok, openai (and any other
+# OpenAI-compatible endpoint via `endpoint`).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# LLM backend  (REQUIRED)
+# -----------------------------------------------------------------------------
+llm:
+  # ollama   : local  -> endpoint http://localhost:11434
+  # lmstudio : local  -> endpoint http://localhost:1234/v1   (OpenAI-compatible)
+  # groq     : cloud  -> endpoint https://api.groq.com/openai/v1
+  # grok     : cloud  -> endpoint https://api.x.ai/v1
+  provider: lmstudio
+  endpoint: http://localhost:1234/v1
+  model: qwen/qwen3-4b-2507
+
+  # REQUIRED for cloud providers (groq/grok/openai); leave "" for local.
+  # Environment variable "${GROQ_API_KEY}" and "${XAI_API_KEY}" are supported for groq and grok respectively.
+  api_key: ""
+
+  options:
+    temperature: 0.1            # sampling temperature
+    num_predict: 4096           # max tokens to generate
+
+# -----------------------------------------------------------------------------
+# File paths  (REQUIRED)
+# -----------------------------------------------------------------------------
+paths:
+  # your resume (markdown/text). You can create your own using `resume.example.md` as a template.
+  cv: __private__/resume.md                
+  # your job expectations/preferences. You can create your own using `expectations.example.md` as a template.       
+  expectations: __private__/expectations.md
+  # SQLite output database (auto-created)
+  db: __private__jobscan.db                       
+  # OPTIONAL — only needed for authenticated LinkedIn job fetches.
+  # Use `linkedin_cookies.example.json` as a template to create your own.
+  linkedin_cookies: __private__/linkedin_cookies.json
+
+# -----------------------------------------------------------------------------
+# Gmail IMAP scanning  (OPTIONAL — set enabled: false to disable)
+# -----------------------------------------------------------------------------
+gmail:
+  enabled: false
+  # Your Gmail address + App Password (enable 2FA first, then generate at
+  # https://myaccount.google.com/apppasswords). Use an env var ref if preferred.
+  email: "you@gmail.com"
+  app_password: "${GMAIL_APP_PASSWORD}"
+  imap_host: "imap.gmail.com"
+  imap_port: 993
+  # Mailbox label to poll for job alert emails:
+  scan_label: "RechercheEmploi/JobAlerts_TO_BE_SCANNED"
+  # Label applied after processing. IMPORTANT: must NOT be a child of scan_label
+  # (IMAP SELECT also returns child labels, causing re-scans).
+  done_label: "RechercheEmploi/JobAlerts_AI_SCANNED"
+  poll_interval_seconds: 300    # daemon mode poll interval
+
+# -----------------------------------------------------------------------------
+# Commute calculation  (OPTIONAL — set enabled: false to disable)
+# -----------------------------------------------------------------------------
+commute:
+  enabled: false
+  home_address: "Paris, France"   # your home/starting address
+  api_key: "${OPENROUTESERVICE_API_KEY}"      # OpenRouteService key (or env var)
+  profile: "driving-car"       # driving-car | cycling-regular | foot-walking
