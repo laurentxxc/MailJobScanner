@@ -249,7 +249,7 @@ Double-click **`MacOS/MailJobScan.command`** in the project folder to launch the
 - Opens a Terminal window showing Streamlit logs in real time
 - Browser opens automatically at `http://localhost:8501`
 - Close the Terminal window (or Ctrl+C) to stop the server cleanly
-- Launcher tracks the Streamlit PID in `.dashboard.pid` — accidental duplicates are killed first
+- Launcher tracks the Streamlit PID in `__private__/.dashboard.pid` — accidental duplicates are killed first
 
 The custom icon is applied automatically by `install.sh` (requires `fileicon`, installed via Homebrew if missing).
 

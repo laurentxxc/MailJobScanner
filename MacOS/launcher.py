@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 VENV_PYTHON = ROOT / ".venv" / "bin" / "python3"
 DASHBOARD = ROOT / "dashboard.py"
-PID_FILE = ROOT / ".dashboard.pid"
+PID_FILE = ROOT / "__private__" / ".dashboard.pid"
 URL = "http://localhost:8501"
 
 
@@ -23,6 +23,7 @@ def launch():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
+    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
     PID_FILE.write_text(str(proc.pid))
     for _ in range(30):
         if proc.poll() is not None:
