@@ -5,23 +5,17 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import yaml
 
-from analyzer.llm_client import LlmClient
-from db.repository import JobRepository
-from main import refetch_single_job
+from core.engine import refetch_single_job
+from core.llm.llm_client import LlmClient
+from core.storage.repository import JobRepository
+from config import load_config
 
 # helper function
 def _strikethrough(val):
     if isinstance(val, str) and val:
         return "\u0336".join(val) + "\u0336"
     return ""
-
-
-def load_config():
-    config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path) as f:
-        return yaml.safe_load(f)
 
 
 @st.cache_data(ttl=60)
@@ -347,13 +341,13 @@ def render_export(df: pd.DataFrame):
     st.sidebar.download_button(
         label="📥 Download CSV",
         data=csv,
-        file_name="mailjobscan_export.csv",
+        file_name="mailjobscanner_export.csv",
         mime="text/csv",
     )
 
 
 def main():
-    st.set_page_config(page_title="MailJobScan Dashboard", layout="wide")
+    st.set_page_config(page_title="MailJobScanner Dashboard", layout="wide")
     st.title("Job Opportunity Dashboard")
     st.caption("Browse and review analyzed job proposals coming from your job alert emails.")
 

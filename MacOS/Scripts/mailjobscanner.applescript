@@ -1,4 +1,4 @@
-property projectDir : "/Users/lvt/Documents/Dev/MailJobScan"
+property projectDir : "/Users/lvt/Documents/Dev/MailJobScanner"
 property venvPython : projectDir & "/.venv/bin/python3"
 
 on run
@@ -9,13 +9,13 @@ on run
 			return
 		end if
 		
-		do shell script "mkdir -p /tmp/mailjobscan"
-		do shell script "echo '---' >> /tmp/mailjobscan/debug.log"
+		do shell script "mkdir -p /tmp/mailjobscanner"
+		do shell script "echo '---' >> /tmp/mailjobscanner/debug.log"
 		set processedCount to 0
 		
 		repeat with msg in selectedMessages
 			set msgId to message id of msg
-			set tempFile to "/tmp/mailjobscan/" & msgId & ".eml"
+			set tempFile to "/tmp/mailjobscanner/" & msgId & ".eml"
 			
 			-- Force Mail to fully download the message body before reading source
 			set msgSource to source of msg as Unicode text
@@ -29,7 +29,7 @@ on run
 			-- save msg in f
 			
 			-- Log file size for debug comparison
-			do shell script "wc -c " & quoted form of tempFile & " >> /tmp/mailjobscan/debug.log"
+			do shell script "wc -c " & quoted form of tempFile & " >> /tmp/mailjobscanner/debug.log"
 			
 			-- Run Python scanner
 			set cmd to "cd " & quoted form of projectDir & " && " & venvPython & " main.py " & quoted form of tempFile
@@ -47,7 +47,7 @@ on run
 		end repeat
 		
 		-- Cleanup temp files
-		do shell script "rm -f /tmp/mailjobscan/*.eml"
+		do shell script "rm -f /tmp/mailjobscanner/*.eml"
 		
 		display dialog "Done. Processed " & processedCount & " email(s). Results saved to jobscan.db."
 	end tell

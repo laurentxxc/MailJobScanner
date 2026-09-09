@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from db.models import JobProposalRecord
+from core.storage.models import JobProposalRecord
 
 
 class JobRepository:

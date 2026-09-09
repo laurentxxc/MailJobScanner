@@ -1,3 +1,5 @@
 {
-    "jira-plugin.workingProject": ""
+    "jira-plugin.workingProject": "",
+    "plantuml.diagramsRoot": "docs",
+    "plantuml.exportOutDir": "docs",
 }

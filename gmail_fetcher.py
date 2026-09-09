@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Gmail IMAP scanner — polls a Gmail label for job alert emails,
+Gmail IMAP fetcher — polls a Gmail label for job alert emails,
 processes them via the existing LLM pipeline, and marks them done.
 
 Usage:
-    python gmail_scanner.py              # single run
-    python gmail_scanner.py --daemon     # poll every N seconds (from config)
+    python gmail_fetcher.py              # single run
+    python gmail_fetcher.py --daemon     # poll every N seconds (from config)
 """
 import argparse
 import imaplib
@@ -17,12 +17,12 @@ import tempfile
 import time
 from pathlib import Path
 
-import yaml
 from tqdm import tqdm
 
-from analyzer.llm_client import LlmClient
-from db.repository import JobRepository
-from main import load_config, process_eml
+from core.engine import process_eml
+from core.llm.llm_client import LlmClient
+from core.storage.repository import JobRepository
+from config import load_config, resolve_env_var
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,30 +32,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _resolve_env_var(val: str) -> str | None:
-    if val.startswith("${") and val.endswith("}"):
-        key = val[2:-1]
-        result = os.environ.get(key)
-        if result:
-            return result
-        dotenv = Path(__file__).parent / "data" / "private" / ".env"
-        if dotenv.exists():
-            for line in dotenv.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, _, v = line.partition("=")
-                    if k.strip() == key:
-                        return v.strip()
-        return None
-    return val or None
-
-
 def connect_gmail(gmail_cfg: dict) -> imaplib.IMAP4_SSL:
     host = gmail_cfg["imap_host"]
     port = gmail_cfg.get("imap_port", 993)
     addr = gmail_cfg["email"]
     raw_pw = gmail_cfg.get("app_password", "")
-    password = _resolve_env_var(raw_pw) if raw_pw else None
+    password = resolve_env_var(raw_pw) if raw_pw else None
     if not password:
         raise ValueError("Gmail app_password is empty. Set it in config.yaml or via ${GMAIL_APP_PASSWORD}.")
     logger.info("Connecting to %s:%d as %s", host, port, addr)
@@ -64,24 +46,48 @@ def connect_gmail(gmail_cfg: dict) -> imaplib.IMAP4_SSL:
     return mail
 
 
-def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, done_label: str, scan_label: str) -> bool:
+def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, done_label: str, scan_label: str, gmail_cfg: dict | None = None) -> imaplib.IMAP4_SSL | None:
+    """Apply done_label to a message and delete from scan_label.
+
+    Returns the (possibly reconnected) mail object, or None if the move failed.
+    """
     try:
         typ, data = mail.uid("COPY", uid, done_label)
         if typ != "OK":
             logger.warning("COPY uid %s to '%s' failed: %s", uid, done_label, data)
-            return False
+            return mail
 
         mail.select(scan_label)
         mail.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
         mail.expunge()
-        return True
+        return mail
     except Exception as e:
-        logger.warning("Failed to move uid %s to '%s': %s", uid, done_label, e)
-        return False
+        if not gmail_cfg:
+            logger.warning("Failed to move uid %s to '%s': %s", uid, done_label, e)
+            return mail
+
+        logger.info("Connection lost during label move for uid %s, reconnecting...", uid)
+        try:
+            mail.logout()
+        except Exception:
+            pass
+        try:
+            mail = connect_gmail(gmail_cfg)
+            typ, data = mail.uid("COPY", uid, done_label)
+            if typ != "OK":
+                logger.warning("Retry COPY uid %s to '%s' failed: %s", uid, done_label, data)
+                return mail
+            mail.select(scan_label)
+            mail.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
+            mail.expunge()
+            return mail
+        except Exception as e2:
+            logger.warning("Retry move uid %s failed: %s", uid, e2)
+            return mail
 
 
 def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient, progress: bool = False) -> int:
-    Path("/tmp/mailjobscan").mkdir(parents=True, exist_ok=True)
+    Path("/tmp/mailjobscanner").mkdir(parents=True, exist_ok=True)
 
     mail = connect_gmail(gmail_cfg)
     try:
@@ -110,6 +116,26 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
         for uid in uid_iter:
             uid_str = uid.decode()
 
+            try:
+                mail.noop()
+            except Exception:
+                if progress:
+                    tqdm.write(f"Connection lost, reconnecting...")
+                else:
+                    logger.info("Connection lost, reconnecting...")
+                try:
+                    mail.logout()
+                except Exception:
+                    pass
+                mail = connect_gmail(gmail_cfg)
+                status, _ = mail.select(scan_label, readonly=True)
+                if status != "OK":
+                    if progress:
+                        tqdm.write(f"Could not re-select '{scan_label}' after reconnect, aborting scan")
+                    else:
+                        logger.error("Could not re-select '%s' after reconnect", scan_label)
+                    break
+
             _, msg_data = mail.uid("fetch", uid_str, "(RFC822)")
             if not msg_data or not msg_data[0]:
                 if progress:
@@ -120,7 +146,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
 
             raw_email = msg_data[0][1]
             with tempfile.NamedTemporaryFile(
-                suffix=".eml", delete=False, dir="/tmp/mailjobscan"
+                suffix=".eml", delete=False, dir="/tmp/mailjobscanner"
             ) as tmp:
                 tmp.write(raw_email)
                 tmp_path = tmp.name
@@ -133,7 +159,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
                     processed += 1
 
                 if done_label:
-                    _apply_label(mail, uid_str, done_label, scan_label)
+                    mail = _apply_label(mail, uid_str, done_label, scan_label, gmail_cfg) or mail
 
             except Exception as e:
                 if progress:
@@ -168,7 +194,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gmail job alert scanner")
+    parser = argparse.ArgumentParser(description="Gmail job alert fetcher")
     parser.add_argument("--daemon", action="store_true", help="Poll continuously at configured interval")
     args = parser.parse_args()
 

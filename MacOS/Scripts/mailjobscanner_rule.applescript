@@ -1,14 +1,14 @@
-property projectDir : "/Users/lvt/Documents/Dev/MailJobScan"
+property projectDir : "/Users/lvt/Documents/Dev/MailJobScanner"
 property venvPython : projectDir & "/.venv/bin/python3"
 
 using terms from application "Mail"
 	on perform mail action with messages matchedMessages for rule theRule
 		tell application "Mail"
-			do shell script "mkdir -p /tmp/mailjobscan"
+			do shell script "mkdir -p /tmp/mailjobscanner"
 
 			repeat with msg in matchedMessages
 				set msgId to message id of msg
-				set tempFile to "/tmp/mailjobscan/" & msgId & ".eml"
+				set tempFile to "/tmp/mailjobscanner/" & msgId & ".eml"
 
 				set msgSource to source of msg as Unicode text
 
@@ -29,7 +29,7 @@ using terms from application "Mail"
 				end try
 			end repeat
 
-			do shell script "rm -f /tmp/mailjobscan/*.eml"
+			do shell script "rm -f /tmp/mailjobscanner/*.eml"
 		end tell
 	end perform mail action with messages
 end using terms from
