@@ -1,4 +1,4 @@
-# MailJobScan
+# MailJobScanner
 
 Scan job alert emails from Apple Mail, extract job proposals, analyze them against your resume and expectations using a local LLM (Ollama or LMStudio), and flag high-matching opportunities.
 
@@ -14,7 +14,7 @@ Also offer a dashboard view allowing to easy filter, review and annotate all sca
 
 ## Table of Contents
 
-- [MailJobScan](#mailjobscan)
+- [MailJobScanner](#mailjobscanner)
   - [Table of Contents](#table-of-contents)
   - [✨ Features](#-features)
   - [🧩 Architecture](#-architecture)
@@ -85,7 +85,7 @@ An `.eml` file is parsed into email fields, the body is sent to the LLM to extra
 
 #### AppleScript integration with Mail.app (Mac User Only)
 
-You can either set an Apple Mail rule (`mailjobscan_rule.applescript`) to auto-trigger when a job-alert email arrives, or select emails and run `mailjobscan.applescript` from the Scripts menu.
+You can either set an Apple Mail rule (`mailjobscanner_rule.applescript`) to auto-trigger when a job-alert email arrives, or select emails and run `mailjobscanner.applescript` from the Scripts menu.
 Either way each email is exported to a temp `.eml`, `main.py` is launched as a subprocess to run the core pipeline, and the returned `flagged` value decides whether a green flag is set in Mail.
 
 ![Design - AppleScript integration with Mail.app](docs/design_views/seq_apple_mail.svg)
@@ -100,19 +100,19 @@ Already-processed messages are skipped via their `Message-ID`, and each processe
 
 #### Opening Streaming dashboard (Mac User Only)
 
-Double-clicking `MailJobScan.command` runs `macos/launcher.py`, which starts a Streamlit server for `dashboard.py`, opens the browser at `http://localhost:8501`, and tracks the PID so accidental duplicates are killed.
+Double-clicking `MailJobScanner.command` runs `macos/launcher.py`, which starts a Streamlit server for `dashboard.py`, opens the browser at `http://localhost:8501`, and tracks the PID so accidental duplicates are killed.
 From the dashboard you can browse, filter, and export results, or re-analyze a single job.
 
 ![Design - Dashboard opening sequence](docs/design_views/seq_dashboard.svg)
 
-The dashboard itself is not macOS-specific. On any platform you can start it directly with `streamlit run dashboard.py`, and scan emails with `python gmail_fetcher.py`. The `MailJobScan.command` / `launcher.py` pair is only a convenience wrapper for macOS.
+The dashboard itself is not macOS-specific. On any platform you can start it directly with `streamlit run dashboard.py`, and scan emails with `python gmail_fetcher.py`. The `MailJobScanner.command` / `launcher.py` pair is only a convenience wrapper for macOS.
 
 ## 📁 Project Structure
 
 Root-level layout (folders only shown one level deep):
 
 ```
-MailJobScan/
+MailJobScanner/
 ├── config.yaml                   # Active config — symlink to __private__/myconfig.yaml
 ├── config.example.yaml           # Documented config template (copy to __private__/)
 ├── config.py                     # Shared leaf: load_config(), env resolution, LinkedIn cookies
@@ -120,7 +120,7 @@ MailJobScan/
 ├── gmail_fetcher.py              # Gmail IMAP fetcher (cross-platform; --daemon to poll)
 ├── dashboard.py                  # Streamlit dashboard app
 ├── core/                         # Layered core packages (parsing → llm → storage), orchestrated by engine.py
-├── MacOS/                        # macOS glue: Mail AppleScripts, dashboard launcher, install.sh
+├── macos/                        # macOS glue: Mail AppleScripts, dashboard launcher, install.sh
 ├── docs/                         # Documentation & PlantUML architecture diagrams
 ├── requirements.txt              # List of required Python module
 ├── README.md                     # This documentation
@@ -146,7 +146,7 @@ MailJobScan/
 ### Install execution environnement
 ```bash
 # 1. Navigate to the project
-cd MailJobScan
+cd MailJobScanner
 
 # 2. Create virtual environment and install dependencies
 python3 -m venv .venv
@@ -168,11 +168,11 @@ ollama serve          # start Ollama if not already running
 ollama list           # should show llama3.2 (or the model in config.yaml)
 
 # 5. Install the Mail Script
-bash MacOS/Scripts/install.sh
+bash macos/scripts/install.sh
 
 #    This compiles the AppleScript and copies it to
-#    ~/Library/Scripts/Applications/Mail/mailjobscan.scpt
-#    If you moved the project, update projectDir in MacOS/Scripts/mailjobscan.applescript first.
+#    ~/Library/Scripts/Applications/Mail/mailjobscanner.scpt
+#    If you moved the project, update projectDir in macos/scripts/mailjobscanner.applescript first.
 ```
 
 ### Configure user inputs
@@ -237,7 +237,7 @@ Example below for Safari (Mac User):
 
 1. Open **Mail.app**
 2. Select one or more job alert emails
-3. Click the **Scripts menu** (wrench icon in the menu bar) → **mailjobscan**
+3. Click the **Scripts menu** (wrench icon in the menu bar) → **mailjobscanner**
 4. Wait for the "Done" dialog — each email takes ~30-60 seconds depending on the number of proposals
 5. Emails with **High** match level are flagged with a yellow flag in Mail
 6. All results are logged to `jobscan.db`
@@ -247,14 +247,14 @@ Example below for Safari (Mac User):
 You can have Mail.app automatically process incoming job-alert emails by creating a mail rule:
 
 1. Open **Mail.app → Settings → Rules → Add Rule**
-2. Give the rule a name (e.g. `MailJobScan`)
+2. Give the rule a name (e.g. `MailJobScanner`)
 3. Set the condition to match your job-alert emails (e.g. *From* contains `jobs-noreply@linkedin.com`, or *Subject* contains `offres d'emploi`)
-4. Set the action to **Run Script** → find `mailjobscan` under `~/Library/Scripts/Applications/Mail/`
+4. Set the action to **Run Script** → find `mailjobscanner` under `~/Library/Scripts/Applications/Mail/`
 5. Click **OK** to save
 
 From then on, every new email that matches the rule is automatically exported to a `.eml` and processed through the LLM pipeline. Matched emails are marked as read; high-match emails get a green flag in Mail.
 
-> **Note:** The `mailjobscan_rule.applescript` uses the same `projectDir` as the main script — if you moved the project, update that path first (see [Troubleshooting](#applescript-cannot-find-the-project)).
+> **Note:** The `mailjobscanner_rule.applescript` uses the same `projectDir` as the main script — if you moved the project, update that path first (see [Troubleshooting](#applescript-cannot-find-the-project)).
 
 #### Via Gmail IMAP (cross-platform, no macOS required)
 
@@ -302,9 +302,9 @@ python gmail_fetcher.py --daemon
 
 As mentioned in [Dashboard with Streamlit](#dashboard-with-streamlit), [Streamlit](https://streamlit.io) with `dashboard.py` provides a nice view allowing to browse, filter and review all the analyzed jobs. 
 
-**Mac User** can directly double-click **`MacOS/MailJobScan.command`** in the project folder to launch the dashboard. This will opens terminal window showing Streamlit logs in realtime and opens automatically the dashboard at [http://localhost:8501](http://localhost:8501)
+**Mac User** can directly double-click **`macos/MailJobScanner.command`** in the project folder to launch the dashboard. This will opens terminal window showing Streamlit logs in realtime and opens automatically the dashboard at [http://localhost:8501](http://localhost:8501)
 
-> **Tip:** Drag `macos/MailJobScan.command` to your Dock for one-click access.
+> **Tip:** Drag `macos/MailJobScanner.command` to your Dock for one-click access.
 
 Other users can access the dashboard view with the following terminal commands.
 
@@ -352,9 +352,9 @@ ollama serve
 
 ### "AppleScript cannot find the project"
 
-If you moved the project directory, update `projectDir` at the top of `MacOS/Scripts/mailjobscan.applescript`, then recompile and reinstall:
+If you moved the project directory, update `projectDir` at the top of `macos/scripts/mailjobscanner.applescript`, then recompile and reinstall:
 ```bash
-bash macos/Scripts/install.sh
+bash macos/scripts/install.sh
 ```
 
 ### "Python virtual environment not found"

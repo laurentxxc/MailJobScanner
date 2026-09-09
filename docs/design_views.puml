@@ -1,4 +1,4 @@
-' MailJobScan architecture
+' MailJobScanner architecture
 ' Static view: outer components and their dependencies
 ' Dynamic view: scan triggers and data-ingestion workflow
 '
@@ -75,8 +75,8 @@ rectangle "IMAP Server" <<external>> as IMAP_SVC {
 I_IMAP -right[hidden]-> IMAP_NOTE
 
 ' --- MacOS specific components ---
-component "macos/scripts:\n+ mailjobscan.applescript, \n+ mailjobscan_rule.applescript" <<OS Specific>> as MACOS_SCPT WITH_OTHER_COLOR
-component "macos/MailJobScan.command" <<OS Specific>> as MACOS_CMD WITH_OTHER_COLOR
+component "macos/scripts:\n+ mailjobscanner.applescript, \n+ mailjobscanner_rule.applescript" <<OS Specific>> as MACOS_SCPT WITH_OTHER_COLOR
+component "macos/MailJobScanner.command" <<OS Specific>> as MACOS_CMD WITH_OTHER_COLOR
 component "macos/launcher.py" <<cli>> as MACOS_LNCH WITH_PYTHON_COLOR
 
 ' --- Main CLI components ---
@@ -272,25 +272,25 @@ end
 
 actor "Mac User" as USER
 entity "Apple Mail.app" as MAIL WITH_OTHER_COLOR
-participant "mailjobscan_rule.applescript\nor\nmailjobscan.applescript" as SCRIPT WITH_OTHER_COLOR
+participant "mailjobscanner_rule.applescript\nor\nmailjobscanner.applescript" as SCRIPT WITH_OTHER_COLOR
 control " " as PYTHON
 participant "main.py" as MAIN WITH_PYTHON_COLOR
 participant "core/engine.py" as ENGINE WITH_PYTHON_COLOR
 participant "config.py" as CONFIG WITH_PYTHON_COLOR
 collections "<config.yaml>\n..." as USER_CFG WITH_USER_DATA_COLOR
 
-== Setting Apple Mail rule to trigger mailjobscan_rule.applescript ==
+== Setting Apple Mail rule to trigger mailjobscanner_rule.applescript ==
 
 USER -> MAIL : Open Preferences -> Rules -> Add Rule
-USER -> MAIL : Set rule conditions:\n "If any of the <conditions> are met\nthen run mailjobscan_rule.applescript"
+USER -> MAIL : Set rule conditions:\n "If any of the <conditions> are met\nthen run mailjobscanner_rule.applescript"
 
 == Triggering job alert scanning process ==
 alt Apple Mail rule triggered
-  MAIL -> SCRIPT ++ : SEQ(Job alert email received, mailjobscan_rule.applescript)
+  MAIL -> SCRIPT ++ : SEQ(Job alert email received, mailjobscanner_rule.applescript)
   SCRIPT -> SCRIPT : targeted_ emails = triggered email 
 else User manually triggers scan script
   USER -> MAIL : Select one or more emails
-  USER -> SCRIPT : Run Scripts menu -> mailjobscan.applescript
+  USER -> SCRIPT : Run Scripts menu -> mailjobscanner.applescript
   SCRIPT -> MAIL ++ : Get selected emails
   MAIL --> SCRIPT --: list of selected emails
   SCRIPT -> SCRIPT : targeted_emails = selected emails
@@ -302,7 +302,7 @@ end
 loop for each email in targeted_emails
   SCRIPT -> MAIL : Get email source
   MAIL --> SCRIPT : raw email source
-  SCRIPT -> SCRIPT : Write raw email to file\nfilepath = /tmp/mailjobscan/<msgid>.eml
+  SCRIPT -> SCRIPT : Write raw email to file\nfilepath = /tmp/mailjobscanner/<msgid>.eml
 
   SCRIPT -> PYTHON ** : python3 main.py filepath  (subprocess)
   PYTHON -> PYTHON ++ : init process
@@ -323,7 +323,7 @@ loop for each email in targeted_emails
   SCRIPT -> MAIL : mark message as read
 end
 
-SCRIPT -> SCRIPT : rm -f /tmp/mailjobscan/*.eml
+SCRIPT -> SCRIPT : rm -f /tmp/mailjobscanner/*.eml
 SCRIPT --> USER -- : "Done. Processed N email(s). Results saved to jobscan.db."
 
 @enduml
@@ -366,7 +366,7 @@ IMAP --> FETCH : UIDs
 loop for each UID in UIDs
   FETCH -> IMAP : SEQ(Retreive UID message, mail.uid("fetch") (RFC822))
   IMAP --> FETCH : raw eml data
-  FETCH -> FETCH : Write eml raw data to file\ntmp_path= /tmp/mailjobscan/<msgid>.eml
+  FETCH -> FETCH : Write eml raw data to file\ntmp_path= /tmp/mailjobscanner/<msgid>.eml
 
   FETCH -> ENGINE ++ : SEQ(Process message content, process_eml(tmp_path, dict ...))
   note over ENGINE : See seq_core_eml.puml for details
@@ -374,7 +374,7 @@ loop for each UID in UIDs
 
   FETCH -> IMAP : Set new label to UID message\nusing dict.gmail.done_label\n(specific folder)
 
-  FETCH -> FETCH : rm -f /tmp/mailjobscan/*.eml
+  FETCH -> FETCH : rm -f /tmp/mailjobscanner/*.eml
 end
 
 FETCH -> IMAP : logout
@@ -383,7 +383,7 @@ FETCH -> IMAP : logout
 
 
 @startuml seq_dashboard
-'title seq 4 — MailJobScan.command -> launcher.py -> dashboard.py
+'title seq 4 — MailJobScanner.command -> launcher.py -> dashboard.py
 
 !option handwritten true
 !pragma teoz true
@@ -400,7 +400,7 @@ skinparam maxMessageSize 200
 'autonumber
 
 actor "Mac User" as USER
-participant "MailJobScan.command\n(bash)" as CMD WITH_OTHER_COLOR
+participant "MailJobScanner.command\n(bash)" as CMD WITH_OTHER_COLOR
 participant "macos/launcher.py" as LNCH WITH_PYTHON_COLOR
 control "Streamlit\nprocess\n(proc.pid)" as STREAM
 participant "dashboard.py\n(Streamlit)" as DASH WITH_PYTHON_COLOR

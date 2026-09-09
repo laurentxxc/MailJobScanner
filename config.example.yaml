@@ -1,5 +1,5 @@
 # =============================================================================
-# MailJobScan configuration
+# MailJobScanner configuration
 # =============================================================================
 # HOW TO USE:
 #   1. Copy this file to `config.yaml`  (the actual config the app reads)

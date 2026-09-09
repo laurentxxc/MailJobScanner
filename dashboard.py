@@ -341,13 +341,13 @@ def render_export(df: pd.DataFrame):
     st.sidebar.download_button(
         label="📥 Download CSV",
         data=csv,
-        file_name="mailjobscan_export.csv",
+        file_name="mailjobscanner_export.csv",
         mime="text/csv",
     )
 
 
 def main():
-    st.set_page_config(page_title="MailJobScan Dashboard", layout="wide")
+    st.set_page_config(page_title="MailJobScanner Dashboard", layout="wide")
     st.title("Job Opportunity Dashboard")
     st.caption("Browse and review analyzed job proposals coming from your job alert emails.")
 

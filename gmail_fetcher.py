@@ -87,7 +87,7 @@ def _apply_label(mail: imaplib.IMAP4_SSL, uid: str, done_label: str, scan_label:
 
 
 def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient, progress: bool = False) -> int:
-    Path("/tmp/mailjobscan").mkdir(parents=True, exist_ok=True)
+    Path("/tmp/mailjobscanner").mkdir(parents=True, exist_ok=True)
 
     mail = connect_gmail(gmail_cfg)
     try:
@@ -146,7 +146,7 @@ def scan_once(config: dict, gmail_cfg: dict, repo: JobRepository, llm: LlmClient
 
             raw_email = msg_data[0][1]
             with tempfile.NamedTemporaryFile(
-                suffix=".eml", delete=False, dir="/tmp/mailjobscan"
+                suffix=".eml", delete=False, dir="/tmp/mailjobscanner"
             ) as tmp:
                 tmp.write(raw_email)
                 tmp_path = tmp.name
