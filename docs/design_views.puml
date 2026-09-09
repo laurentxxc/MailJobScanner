@@ -1,0 +1,452 @@
+' MailJobScan architecture
+' Static view: outer components and their dependencies
+' Dynamic view: scan triggers and data-ingestion workflow
+'
+' Render locally:   plantuml -tpng docs/architecture.puml
+
+@startuml overall_static_view
+'title Static view — components & dependencies
+
+!option handwritten true
+
+!define WITH_NOTE_COLOR #FDF6E3
+!define WITH_USER_DATA_COLOR #36b5df
+!define WITH_PYTHON_COLOR #6ac770
+!define WITH_OTHER_COLOR #f6c177
+
+legend bottom
+<#white,#white>|<b><size:15>COLOR KEYS</size></b> |
+|<WITH_NOTE_COLOR>Note and comments |
+|<WITH_USER_DATA_COLOR>Private user data |
+|<WITH_PYTHON_COLOR>Python source code |
+|<WITH_OTHER_COLOR>Other source code (e.g. AppleScript, shell, etc.) |
+endlegend
+
+' --- LM\M\ service (local or cloud) ---
+rectangle "LLM Service" <<external>> as LLM_SVC {
+  interface " " as I_LLM 
+  file LLM_NOTE WITH_NOTE_COLOR [
+    LLM can be a local
+    - Ollama,
+    - LM Studio
+    or in the cloud
+    - Grok
+    - Groq
+    - OpenAI
+  ]
+}
+'I_LLM . LLM_SVC
+I_LLM -right[hidden]-> LLM_NOTE
+
+' --- OpenRouteService ---
+rectangle "OpenRoute Service" <<external>> as ORS_SVC {
+  interface " " as I_ORS
+  file ORS_NOTE WITH_NOTE_COLOR [
+    Get commute info from
+    [[https://api.openrouteservice.org OpenRouteService API]]
+  ]
+}
+'I_ORS --> ORS_SVC
+I_ORS -right[hidden]-> ORS_NOTE
+
+' --- Job offer portal ---
+rectangle "Job Web Portal" <<external>> as PORTAL_SVC {
+  interface " " as I_PORTAL
+  file PORTAL_NOTE WITH_NOTE_COLOR [
+    Exemples:
+    - LinkedIn
+    - HelloWork
+    - ...
+  ]
+}
+'I_PORTAL . PORTAL_SVC
+I_PORTAL -right[hidden]-> PORTAL_NOTE
+
+
+' --- IMAP service ---
+rectangle "IMAP Server" <<external>> as IMAP_SVC {
+  interface " " as I_IMAP
+  file IMAP_NOTE WITH_NOTE_COLOR [
+    Only Gmail is
+    supported for now
+  ]
+}
+'I_IMAP --> IMAP_SVC
+I_IMAP -right[hidden]-> IMAP_NOTE
+
+' --- MacOS specific components ---
+component "macos/scripts:\n+ mailjobscan.applescript, \n+ mailjobscan_rule.applescript" <<OS Specific>> as MACOS_SCPT WITH_OTHER_COLOR
+component "macos/MailJobScan.command" <<OS Specific>> as MACOS_CMD WITH_OTHER_COLOR
+component "macos/launcher.py" <<cli>> as MACOS_LNCH WITH_PYTHON_COLOR
+
+' --- Main CLI components ---
+component "main.py" <<cli>> as MAIN WITH_PYTHON_COLOR
+component "gmail_fetcher.py" <<cli>> as GFETCH WITH_PYTHON_COLOR
+component "dashboard.py" <<streamlit>> as DASH WITH_PYTHON_COLOR
+
+
+' --- Core components ---
+component "core/llm" as LLM WITH_PYTHON_COLOR
+component "core/storage" as STORAGE WITH_PYTHON_COLOR
+component "core/parsing" as PARSING WITH_PYTHON_COLOR
+component "core/engine.py" as ENGINE WITH_PYTHON_COLOR
+
+ENGINE --> LLM
+ENGINE --> STORAGE
+ENGINE --> PARSING
+
+' --- configuration files use as global config for the app ---
+component "config.py: \n+ load_config(), \n+ resolve_env_var()" <<common>> as CFG WITH_PYTHON_COLOR
+
+database DB <<user data>> WITH_USER_DATA_COLOR [
+..**OUTPUT**..
+
+  <jobscan.db>
+]
+
+file CFG_FILE <<user data>> WITH_USER_DATA_COLOR [
+..**INPUT**..
+  <config.yaml>,
+  <resume.yaml>, 
+  <expectations.yaml>, 
+  <.env>, 
+  <linkedin_cookies.json>
+]
+
+' --- MacOS triggers ---
+MACOS_SCPT --> MAIN
+MACOS_CMD --> MACOS_LNCH
+MACOS_LNCH --> DASH 
+
+
+' --- entry points delegate to the engine ---
+MAIN --> ENGINE : process eml message,\nAnalyze job proposal
+GFETCH --> ENGINE : process eml message,\nAnalyze job proposal
+GFETCH ---> I_IMAP : fetch new emails
+DASH --> ENGINE : Re-analyse job proposal
+DASH ---> STORAGE : Access recorded jobs
+
+'MAIN --> CFG : load_config()
+'GFETCH --> CFG : load_config()
+'DASH --> CFG : load_config()
+
+
+' --- engine outer dependencies ---
+LLM ---> I_LLM : Summarize job, \nGet resume matching, \nGet expectations matching
+LLM ---> I_ORS : Get commute info
+ENGINE ----> I_PORTAL : Fetch job description
+STORAGE --> DB : Read/Write job table (SQLite3)
+
+' --- config.py reads the user-managed private data ---
+CFG -up-> CFG_FILE : Read
+
+' --- User interactions ---
+"User" as USER1
+"User" as USER2
+"User" as USER3
+"User" as USER4
+"User" as USER5
+
+USER1 ..> MACOS_SCPT : Scan jobs in selected email(s),\nDefine Mail rule to auto-scan jobs in emails
+USER2 ..> MACOS_CMD : Launch dashboard of scanned jobs
+USER3 ..> DASH : Browse job proposals,\nre-analyze, filter,\nexport
+USER4 ..> GFETCH : Scan job alerts\nin Gmail folder
+USER5 ..> CFG_FILE : Edit config.yaml,\nresume.yaml,\nexpectations.yaml,\n.env,\nlinkedin_cookies.json
+
+' --- hidden links for better positioning ---
+GFETCH -left[hidden]-> CFG
+
+@enduml
+
+
+@startuml seq_core_eml
+'title seq 1 — Core processing of a single .eml message
+!option handwritten true
+!pragma teoz true
+
+!define WITH_NOTE_COLOR #FDF6E3
+!define WITH_USER_DATA_COLOR #36b5df
+!define WITH_PYTHON_COLOR #6ac770
+!define WITH_OTHER_COLOR #f6c177
+
+!define SEQ(desc, call) <b>desc</b>\n<color:blue>call</color>
+
+'autonumber
+
+participant "core/engine.py" as ENGINE WITH_PYTHON_COLOR
+participant "core/parsing/\nemail_parser.py" as PARSER WITH_PYTHON_COLOR
+participant "core/llm/\nllm_client.py" as LLMC WITH_PYTHON_COLOR
+participant "core/llm/\ncommute.py" as COMMUTE WITH_PYTHON_COLOR
+participant "core/storage/\nrepository.py" as REPO WITH_PYTHON_COLOR
+database "$config.paths.db" as DB WITH_USER_DATA_COLOR
+box <<external>>
+  entity "LLM\nService" as LLM
+  entity "OpenRoute\nService" as ORS
+  entity "Job Web\nPortal" as PORTAL
+end box
+
+== Extracting list of jobs links from eml message ==
+
+ENGINE -> ENGINE ++: SEQ(Process .eml message, process_eml(filepath, user, ...))
+
+ENGINE -> PARSER ++: SEQ(Parse email content, parse_eml(filepath))
+PARSER --> ENGINE --: subject / from / body + URLs
+
+ENGINE -> LLMC ++: SEQ(Extract job proposals,extract_job_proposals(body))
+LLMC -> LLM ++: SEQ(Analyse body with EXTRACTION_SYSTEM_PROMPT,HTTP API)
+LLM --> LLMC --: LLM analysis results
+&LLMC --> ENGINE --: proposed_jobs
+
+/'
+alt no proposals
+  ENGINE --> ENGINE : return {"flagged": false}
+else proposals found
+end
+'/
+
+loop for each proposed job
+  note across WITH_NOTE_COLOR: Similar sequence for refetch_single_job(url) used in dashboard.py
+  == Fetching full job description ==
+  ENGINE -> PORTAL ++ : SEQ(Retrieve job description, request.get(job.url))
+  PORTAL --> ENGINE -- : job.description
+
+  == Creating job summary and updating job attributes ==
+  ENGINE -> LLMC ++: SEQ(Get job summary, summarize_job(job.description))
+  LLMC -> LLM ++: SEQ(Analyse inputs with JOB_SUMMARY_PROMPT,HTTP API)
+  LLM --> LLMC --: LLM analysis results
+  &LLMC --> ENGINE --: job.summary + updated job attributes (inc. title, company, salary, location)
+
+  opt commute enabled
+    ENGINE -> COMMUTE ++ : SEQ(Get commute time,get_commute_info(user.home, job.location))
+    COMMUTE -> ORS ++: SEQ(Query OpenRouteService, HTTP API)
+    ORS --> COMMUTE --: commute info
+    &COMMUTE --> ENGINE --: job.commute_info
+  end
+
+  == Analysing matching details between user resume and expectations ==
+
+  par resume & expectations matches in parallel
+    group resume
+      ENGINE -> LLMC ++: SEQ(Get resume matching details, match_resume(job.description, user.resume))
+      LLMC -> LLM ++: SEQ(Analyse inputs with RESUME_MATCH_PROMPT,HTTP API)
+      LLM --> LLMC --: LLM analysis results
+      &LLMC --> ENGINE --: job.resume_match_details, job.resume_match_level
+    end
+    group expectations
+      ENGINE -> LLMC ++: SEQ(Match expectations, match_expectations(job.description, job.commute_info))
+      LLMC -> LLM ++: SEQ(Analyse inputs with EXPECTATIONS_PROMPT,HTTP API)
+      LLM --> LLMC --: LLM analysis results
+      &LLMC --> ENGINE --: job.expectations_match_details, job.expectations_match_level
+    end
+  end
+
+  == Recording job proposal in user database ==
+
+  ENGINE -> REPO ++: SEQ(Save job details, insert(job))
+  REPO -> DB --: SEQ(INSERT, SQL API)
+
+  opt resume AND expectations both High
+    ENGINE --> ENGINE --: has_high_match = true
+  end
+end
+
+'ENGINE --> ENGINE : return {"flagged": has_high_match}
+
+@enduml
+
+
+@startuml seq_apple_mail
+'title seq 2 — Apple Mail script -> main.py -> engine.py
+
+!option handwritten true
+!pragma teoz true
+
+!define WITH_NOTE_COLOR #FDF6E3
+!define WITH_USER_DATA_COLOR #36b5df
+!define WITH_PYTHON_COLOR #6ac770
+!define WITH_OTHER_COLOR #f6c177
+
+!define SEQ(desc, call) <b>desc</b>\n<color:blue>call</color>
+
+'autonumber
+
+actor "Mac User" as USER
+entity "Apple Mail.app" as MAIL WITH_OTHER_COLOR
+participant "mailjobscan_rule.applescript\nor\nmailjobscan.applescript" as SCRIPT WITH_OTHER_COLOR
+control " " as PYTHON
+participant "main.py" as MAIN WITH_PYTHON_COLOR
+participant "core/engine.py" as ENGINE WITH_PYTHON_COLOR
+participant "config.py" as CONFIG WITH_PYTHON_COLOR
+collections "<config.yaml>\n..." as USER_CFG WITH_USER_DATA_COLOR
+
+== Setting Apple Mail rule to trigger mailjobscan_rule.applescript ==
+
+USER -> MAIL : Open Preferences -> Rules -> Add Rule
+USER -> MAIL : Set rule conditions:\n "If any of the <conditions> are met\nthen run mailjobscan_rule.applescript"
+
+== Triggering job alert scanning process ==
+alt Apple Mail rule triggered
+  MAIL -> SCRIPT ++ : SEQ(Job alert email received, mailjobscan_rule.applescript)
+  SCRIPT -> SCRIPT : targeted_ emails = triggered email 
+else User manually triggers scan script
+  USER -> MAIL : Select one or more emails
+  USER -> SCRIPT : Run Scripts menu -> mailjobscan.applescript
+  SCRIPT -> MAIL ++ : Get selected emails
+  MAIL --> SCRIPT --: list of selected emails
+  SCRIPT -> SCRIPT : targeted_emails = selected emails
+end
+ 
+
+== Activating core job scanning process ==
+
+loop for each email in targeted_emails
+  SCRIPT -> MAIL : Get email source
+  MAIL --> SCRIPT : raw email source
+  SCRIPT -> SCRIPT : Write raw email to file\nfilepath = /tmp/mailjobscan/<msgid>.eml
+
+  SCRIPT -> PYTHON ** : python3 main.py filepath  (subprocess)
+  PYTHON -> PYTHON ++ : init process
+  PYTHON -> MAIN ++
+  MAIN -> CONFIG ++ : SEQ(Load user configuration,load_config())
+  CONFIG -> USER_CFG : Read yaml
+  CONFIG --> MAIN --: config dict
+  MAIN -> ENGINE ++: SEQ(Process email,process_eml(filepath, config...))
+  note over ENGINE : See seq_core_eml.puml for details
+  ENGINE --> MAIN -- : {"flagged": bool, ...}
+  MAIN --> PYTHON -- : {"flagged": bool, ...}
+  PYTHON --> SCRIPT : JSON on stdout
+  destroy PYTHON
+
+  alt flagged is "true"
+    SCRIPT -> MAIL : set flag index 3 (green)
+  end
+  SCRIPT -> MAIL : mark message as read
+end
+
+SCRIPT -> SCRIPT : rm -f /tmp/mailjobscan/*.eml
+SCRIPT --> USER -- : "Done. Processed N email(s). Results saved to jobscan.db."
+
+@enduml
+
+
+@startuml seq_gmail_fetcher
+'title seq 3 — gmail_fetcher.py -> engine.py
+
+!option handwritten true
+!pragma teoz true
+
+!define WITH_NOTE_COLOR #FDF6E3
+!define WITH_USER_DATA_COLOR #36b5df
+!define WITH_PYTHON_COLOR #6ac770
+!define WITH_OTHER_COLOR #f6c177
+
+!define SEQ(desc, call) <b>desc</b>\n<color:blue>call</color>
+
+'autonumber
+
+actor "User" as USER
+collections "<config.yaml>\n..." as USER_CFG WITH_USER_DATA_COLOR
+participant "config.py" as CONFIG WITH_PYTHON_COLOR
+participant "gmail_fetcher.py" as FETCH WITH_PYTHON_COLOR
+entity "IMAP server\n(Gmail)" as IMAP
+participant "core/engine.py" as ENGINE WITH_PYTHON_COLOR
+
+USER -> FETCH ++ : python3 gmail_fetcher.py (CLI)
+FETCH -> CONFIG ++ : SEQ(Load user configuration,load_config())
+CONFIG -> USER_CFG : Read yaml
+note over CONFIG
+gmail.enabled must be true 
+end note
+CONFIG --> FETCH -- : config dict
+
+FETCH -> IMAP : Connect to Gmail server (with config.gmail)
+FETCH -> IMAP : Get list if email uid\nwith label dict.gmail.scan_label\n(i.e. specific folder)
+IMAP --> FETCH : UIDs
+
+loop for each UID in UIDs
+  FETCH -> IMAP : SEQ(Retreive UID message, mail.uid("fetch") (RFC822))
+  IMAP --> FETCH : raw eml data
+  FETCH -> FETCH : Write eml raw data to file\ntmp_path= /tmp/mailjobscan/<msgid>.eml
+
+  FETCH -> ENGINE ++ : SEQ(Process message content, process_eml(tmp_path, dict ...))
+  note over ENGINE : See seq_core_eml.puml for details
+  ENGINE --> FETCH -- : result 
+
+  FETCH -> IMAP : Set new label to UID message\nusing dict.gmail.done_label\n(specific folder)
+
+  FETCH -> FETCH : rm -f /tmp/mailjobscan/*.eml
+end
+
+FETCH -> IMAP : logout
+
+@enduml
+
+
+@startuml seq_dashboard
+'title seq 4 — MailJobScan.command -> launcher.py -> dashboard.py
+
+!option handwritten true
+!pragma teoz true
+!pragma sequenceMessageSpan true
+skinparam maxMessageSize 200
+
+!define WITH_NOTE_COLOR #FDF6E3
+!define WITH_USER_DATA_COLOR #36b5df
+!define WITH_PYTHON_COLOR #6ac770
+!define WITH_OTHER_COLOR #f6c177
+
+!define SEQ(desc, call) <b>desc</b>\n<color:blue>call</color>
+
+'autonumber
+
+actor "Mac User" as USER
+participant "MailJobScan.command\n(bash)" as CMD WITH_OTHER_COLOR
+participant "macos/launcher.py" as LNCH WITH_PYTHON_COLOR
+control "Streamlit\nprocess\n(proc.pid)" as STREAM
+participant "dashboard.py\n(Streamlit)" as DASH WITH_PYTHON_COLOR
+participant "config.py" as CONFIG WITH_PYTHON_COLOR
+collections "<config.yaml>\n..." as USER_CFG WITH_USER_DATA_COLOR
+database "$config.paths.db" as DB WITH_USER_DATA_COLOR
+'participant "__private__/\n.dashboard.pid" as PID
+
+== Opening Jobs dashboard ==
+USER -> CMD : double-click to launch dashboard
+
+alt proc.pid exists -> job dashboard already running with streamlit
+  CMD -> CMD ++ : SEQ(Open dashboard in web browser,open http://localhost:8501)
+else no proc.pid -> job dashboard need to be launched
+  CMD -> LNCH ++ : SEQ(Start dashboard launcher,exec .venv/bin/python3 launcher.py)
+  LNCH -> STREAM **  : SEQ(Spawn streamlit process, streamlit run dashboard.py)
+  STREAM -> STREAM ++ : proc init
+  STREAM -> DASH ++ : SEQ(Start dashboard, main())
+
+  LNCH -> LNCH : SEQ(Keep streamlit process pid, PID_FILE.write_text(proc.pid))
+
+  DASH -> CONFIG ++: SEQ(Load user configuration,load_config())
+  CONFIG -> USER_CFG : Read yaml
+  CONFIG --> DASH -- : config dict
+
+  DASH -> DB : SEQ(Read table of job proposal in config.paths.db, pd.read_sql("SELECT * FROM job_proposals ORDER BY created_at DESC"))
+  DASH -> DASH: SEQ(Render Dashboard UI, render_table())
+  DASH --> STREAM --
+
+  loop until server responsive (max 30s)
+    LNCH -> DASH : SEQ(Check dashboard page is available, poll http://localhost:8501)
+  end
+  LNCH -> LNCH : SEQ(Open dasboard in web browser, webbrowser.open(http://localhost:8501))
+
+end
+...
+
+== Closing jobs dashboard ==
+
+opt Ctrl+C / process exit
+  USER -> LNCH : Ctrl+C keyboard sequence
+  LNCH -> STREAM : SEQ(Terminate streamlit process, os.kill(proc.pid))
+  destroy STREAM
+  LNCH -> LNCH : SEQ(Unlink streamlit process pid, PID_FILE.unlink())
+  LNCH --> CMD --
+  CMD --> USER -- : closing terminal
+end
+
+@enduml
