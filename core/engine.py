@@ -87,6 +87,14 @@ def is_login_page(text: str, url: str = "") -> bool:
     return count >= 3
 
 
+def _as_text(value) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    if value is None:
+        return ""
+    return str(value)
+
+
 def _match_resume_and_expectations(llm: LlmClient, jd_text: str, commute_info: str = "") -> tuple[dict, dict]:
     """Run match_resume and match_expectations in parallel."""
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -138,12 +146,12 @@ def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> 
         "resume_match_summary": resume_match.get("summary", "") if resume_match else "",
         "expectations_match_level": expectations_match.get("level") if expectations_match else None,
         "expectations_match_summary": expectations_match.get("summary", "") if expectations_match else "",
-        "job_responsibilities_summary": job_summary.get("responsibilities", "") if job_summary else "",
-        "job_requirements_summary": job_summary.get("requirements", "") if job_summary else "",
-        "job_technology_domains": job_summary.get("technology_domains", "") if job_summary else "",
+        "job_responsibilities_summary": _as_text(job_summary.get("responsibilities", "")) if job_summary else "",
+        "job_requirements_summary": _as_text(job_summary.get("requirements", "")) if job_summary else "",
+        "job_technology_domains": _as_text(job_summary.get("technology_domains", "")) if job_summary else "",
         "commute_info": commute_info,
         "title": job_summary.get("title", "") if job_summary else "",
-        "company": job_summary.get("company", "") if job_summary else "",
+        "company": job_summary.get("company", "") if job_summary else "Unknown",
         "salary": job_summary.get("salary", "") if job_summary else "",
         "location": job_summary.get("location", "") if job_summary else "",
     }
@@ -260,9 +268,9 @@ def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository
                 resume_match_summary=resume_match.get("summary") if resume_match else "",
                 expectations_match_level=expectations_match.get("level") if expectations_match else None,
                 expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
-                job_responsibilities_summary=job_summary.get("responsibilities", "") if job_summary else "",
-                job_requirements_summary=job_summary.get("requirements", "") if job_summary else "",
-                job_technology_domains=job_summary.get("technology_domains", "") if job_summary else "",
+                job_responsibilities_summary=_as_text(job_summary.get("responsibilities", "")) if job_summary else "",
+                job_requirements_summary=_as_text(job_summary.get("requirements", "")) if job_summary else "",
+                job_technology_domains=_as_text(job_summary.get("technology_domains", "")) if job_summary else "",
                 commute_info=commute_info,
                 error=error,
                 notes=notes,
