@@ -62,8 +62,28 @@ class LlmClient:
                 "format": "json",
                 "options": self.options,
                 "stream": False,
+                "think":False
             }
             resp = requests.post(f"{self.endpoint}/api/chat", json=payload, timeout=120)
+
+        elif self.provider == "lmstudio":
+            payload = {
+                "model": self.model,
+                "input" : user,
+                "system_prompt" : system,
+                "stream" : False,
+                "temperature": self.options.get("temperature", 0.1),
+                "max_output_tokens": self.options.get("num_predict", 4096),
+                "reasoning": self.options.get("reasoning", "off")
+            }
+
+            resp = requests.post(
+                f"{self.endpoint}/api/v1/chat",
+                json = payload,
+                headers = {"Content-Type": "application/json"},
+                timeout=120
+                )
+
         else:
             if self.api_key:
                 time.sleep(4)
@@ -99,6 +119,12 @@ class LlmClient:
 
         if self.provider == "ollama":
             raw = body["message"]["content"]
+        elif self.provider == "lmstudio":
+            raw = "".join(
+                item.get("content", "")
+                for item in body.get("output", [])
+                if item.get("type") == "message"
+            )
         else:
             raw = body["choices"][0]["message"]["content"]
 

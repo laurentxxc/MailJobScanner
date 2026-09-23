@@ -21,12 +21,12 @@
 # -----------------------------------------------------------------------------
 llm:
   # ollama   : local  -> endpoint http://localhost:11434
-  # lmstudio : local  -> endpoint http://localhost:1234/v1   (OpenAI-compatible)
+  # lmstudio : local  -> endpoint http://localhost:1234  (LM Studio API v1 supported)
   # groq     : cloud  -> endpoint https://api.groq.com/openai/v1
   # grok     : cloud  -> endpoint https://api.x.ai/v1
   provider: lmstudio
-  endpoint: http://localhost:1234/v1
-  model: qwen/qwen3-4b-2507
+  endpoint: http://localhost:1234
+  model: qwen/qwen3-4b
 
   # REQUIRED for cloud providers (groq/grok/openai); leave "" for local.
   # Environment variable "${GROQ_API_KEY}" and "${XAI_API_KEY}" are supported for groq and grok respectively.
@@ -35,6 +35,8 @@ llm:
   options:
     temperature: 0.1            # sampling temperature
     num_predict: 4096           # max tokens to generate
+    # lmstudio specific
+    reasoning: "off"            # disable reasoning (limit number of generated token)
 
 # -----------------------------------------------------------------------------
 # File paths  (REQUIRED)
