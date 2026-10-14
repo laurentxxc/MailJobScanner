@@ -156,6 +156,91 @@ def refetch_single_job(url: str, llm: LlmClient, config: dict | None = None) -> 
         "location": job_summary.get("location", "") if job_summary else "",
     }
 
+def fetch_single_job(url: str, llm: LlmClient, repo: JobRepository, config: dict | None = None,  dry_run: bool = False) -> dict:
+    """Fetch job description, analyze resume and expectations matches, and add to database."""
+    jd_text = fetch_job_description(url) if url else None
+    if not jd_text:
+        return {"error": f"Could not fetch job description from {url}" if url else "No URL",
+                "resume_match_level": None, "resume_match_summary": "",
+                "expectations_match_level": None, "expectations_match_summary": ""}
+    if is_login_page(jd_text, url):
+        return {"error": f"Login page detected at {url}",
+                "resume_match_level": None, "resume_match_summary": "",
+                "expectations_match_level": None, "expectations_match_summary": ""}
+
+    job_summary = None
+    try:
+        job_summary = llm.summarize_job(jd_text)
+    except Exception as e:
+        job_summary = None
+
+    commute_info = ""
+    if config and config.get("commute", {}).get("enabled"):
+        commute_cfg = config["commute"]
+        job_location = job_summary.get("location", "") if job_summary else ""
+        commute_info = get_commute_info(
+            commute_cfg["home_address"],
+            job_location,
+            commute_cfg.get("api_key", ""),
+            commute_cfg.get("profile", "driving-car"),
+        )
+
+    resume_match = expectations_match = None
+    try:
+        resume_match, expectations_match = _match_resume_and_expectations(llm, jd_text, commute_info)
+    except Exception as e:
+        resume_match = {"level": "Error", "summary": str(e)}
+        expectations_match = {"level": "Error", "summary": str(e)}
+
+    title = job_summary.get("title", "") if job_summary else ""
+    company = job_summary.get("company", "") if job_summary else "Unknown"
+    salary = job_summary.get("salary", "") if job_summary else ""
+    location = job_summary.get("location", "") if job_summary else ""
+
+    record_id = 0
+    if not dry_run:
+        dup = repo.find_last_duplicate(company, title)
+        dup_status = dup[1] if dup else None
+        record = JobProposalRecord(
+            email_subject="Manual check",
+            email_from="",
+            email_received_date=time.strftime("%Y-%m-%d %H:%M:%S"),
+            job_title=title,
+            job_url=url,
+            company=company,
+            salary=salary,
+            location=location,
+            resume_match_level=resume_match.get("level") if resume_match else None,
+            resume_match_summary=resume_match.get("summary") if resume_match else "",
+            expectations_match_level=expectations_match.get("level") if expectations_match else None,
+            expectations_match_summary=expectations_match.get("summary") if expectations_match else "",
+            job_responsibilities_summary=_as_text(job_summary.get("responsibilities", "")) if job_summary else "",
+            job_requirements_summary=_as_text(job_summary.get("requirements", "")) if job_summary else "",
+            job_technology_domains=_as_text(job_summary.get("technology_domains", "")) if job_summary else "",
+            commute_info=commute_info,
+            error=None,
+            status=dup_status or "new",
+        )
+        record_id = repo.insert(record)
+    else:
+        logger.info("Dry run — skipping DB insert for '%s'", title)
+
+    return {
+        "error": None,
+        "resume_match_level": resume_match.get("level") if resume_match else None,
+        "resume_match_summary": resume_match.get("summary", "") if resume_match else "",
+        "expectations_match_level": expectations_match.get("level") if expectations_match else None,
+        "expectations_match_summary": expectations_match.get("summary", "") if expectations_match else "",
+        "job_responsibilities_summary": _as_text(job_summary.get("responsibilities", "")) if job_summary else "",
+        "job_requirements_summary": _as_text(job_summary.get("requirements", "")) if job_summary else "",
+        "job_technology_domains": _as_text(job_summary.get("technology_domains", "")) if job_summary else "",
+        "commute_info": commute_info,
+        "title": title,
+        "company": company,
+        "salary": salary,
+        "location": location,
+        "record_id":record_id
+    }
 
 def process_eml(filepath: str, config: dict, llm: LlmClient, repo: JobRepository, dry_run: bool = False, progress: bool = False, bar_position: int = 0) -> dict:
     email_data = parse_eml(filepath)
