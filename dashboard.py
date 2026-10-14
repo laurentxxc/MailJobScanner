@@ -11,12 +11,35 @@ from core.llm.llm_client import LlmClient
 from core.storage.repository import JobRepository
 from config import load_config
 
+# Repo attribute/column to display name table
+COLUMN_DISPLAY_NAMES = {
+    "job_title": "Title",
+    "company": "Company",
+    "location": "Location",
+    "salary": "Salary",
+    "_best_label": "Total Match",
+    "resume_match_level": "Resume Match",
+    "expectations_match_level": "Expect. Match",
+    "_parsed_date": "Date",
+    "id": "ID",
+    "resume_match_summary": "Resume Match Summary",
+    "expectations_match_summary": "Expectations Match Summary",
+    "job_url": "URL",
+    "email_subject": "Email Subject",
+    "email_from": "Email From",
+    "job_technology_domains": "Technology Domains",
+    "job_responsibilities_summary": "Responsibilities",
+    "job_requirements_summary": "Requirements",
+    "commute_info": "Commute Info",
+    "status": "Status",
+    "notes": "Notes",
+}
+
 # helper function
 def _strikethrough(val):
     if isinstance(val, str) and val:
         return "\u0336".join(val) + "\u0336"
     return ""
-
 
 @st.cache_data(ttl=60)
 def load_data(db_path: str) -> pd.DataFrame:
@@ -124,7 +147,8 @@ def render_table(df: pd.DataFrame):
         "_parsed_date": "Date",
         "id": "ID",
     }
-    display = df[list(cols.keys())].copy()
+    COLS = [ "job_title", "company", "location", "salary", "status", "_best_label", "resume_match_level", "expectations_match_level", "_parsed_date", "id" ]
+    display = df[COLS].copy()
     display["status"] = display["status"].fillna("new").str.capitalize()
     display["_best_label"] = display["_best_label"].map(match_icon_map).fillna("⚪")
     display["_parsed_date"] = (
@@ -151,7 +175,7 @@ def render_table(df: pd.DataFrame):
 
     selection = st.dataframe(
         styled,
-        column_config={k: v for k, v in cols.items()},
+        column_config={k: COLUMN_DISPLAY_NAMES.get(k,k) for k in COLS},
         on_select="rerun",
         selection_mode="single-row",
         width="stretch",
@@ -211,17 +235,20 @@ def render_detail(row: pd.Series, db_path: str):
 
     left, right = st.columns(2, vertical_alignment="top")
 
+    def cname(col: str) -> str:
+        return COLUMN_DISPLAY_NAMES.get(col,col)
+
     with left:
         st.subheader(f"[{row['job_title']}]({row['job_url']})")
-        st.write(f"**Company:** {row['company']}")
-        st.write(f"**Email:** {row['email_subject']}")
-        st.write(f"**From:** {row['email_from']}")
-        st.write(f"**Date:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
-        st.write(f"**Salary:** {row.get('salary') or 'N/A'}")
-        st.write(f"**Location:** {row.get('location') or 'N/A'}")
+        st.write(f"**{cname('company')}:** {row['company']}")
+        st.write(f"**{cname('email_subject')}:** {row['email_subject']}")
+        st.write(f"**{cname('email_from')}:** {row['email_from']}")
+        st.write(f"**{cname('_parsed_date')}:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
+        st.write(f"**{cname('salary')}:** {row.get('salary') or 'N/A'}")
+        st.write(f"**{cname('location')}:** {row.get('location') or 'N/A'}")
         commute = row.get("commute_info", "")
         if commute:
-            st.write(f"**Commute:** {commute}")
+            st.write(f"**{cname('commute')}:** {commute}")
 
         resp = row.get("job_responsibilities_summary", "")
         req = row.get("job_requirements_summary", "")
@@ -229,13 +256,13 @@ def render_detail(row: pd.Series, db_path: str):
         if resp or req or tech:
             st.divider()
         if tech:
-            st.markdown("**Technology Domains:**")
+            st.markdown(f"**{cname('job_technology_domains')}:**")
             st.markdown(tech)
         if resp:
-            st.markdown("**Responsibilities:**")
+            st.markdown(f"**{cname('job_responsibilities_summary')}:**")
             st.markdown(format_bullets(resp))
         if req:
-            st.markdown("**Requirements:**")
+            st.markdown(f"**{cname('job_requirements_summary')}:**")
             st.markdown(format_bullets(req))
 
 
@@ -250,7 +277,7 @@ def render_detail(row: pd.Series, db_path: str):
                 st.session_state["_selected_id"] = record_id
                 st.cache_data.clear()
 
-        st.write("**Status:**")
+        st.write(f"**{cname('status')}:**")
         st.selectbox(
             label="status",
             label_visibility="collapsed",
@@ -268,7 +295,7 @@ def render_detail(row: pd.Series, db_path: str):
                 st.session_state["_selected_id"] = record_id
                 st.cache_data.clear()
 
-        st.write("**Notes:**")
+        st.write(f"**{cname('notes')}:**")
         st.text_area(
             label="notes",
             label_visibility="collapsed",
@@ -280,9 +307,9 @@ def render_detail(row: pd.Series, db_path: str):
 
         st.divider()
 
-        st.markdown(f"**Resume Match:** {r_emoji} {row['resume_match_level'] or 'N/A'}")
+        st.markdown(f"**{cname('resume_match_level')}:** {r_emoji} {row['resume_match_level'] or 'N/A'}")
         st.markdown(format_bullets(row.get("resume_match_summary", "")))
-        st.markdown(f"**Expectations Match:** {e_emoji} {row['expectations_match_level'] or 'N/A'}")
+        st.markdown(f"**{cname('expectations_match_level')}:** {e_emoji} {row['expectations_match_level'] or 'N/A'}")
         st.markdown(format_bullets(row.get("expectations_match_summary", "")))
 
     record_id = int(row["id"])
@@ -322,7 +349,7 @@ def render_refresh():
     auto_refresh = st.sidebar.toggle("Auto-refresh", value=False)
     interval_label = st.sidebar.selectbox("Interval", ["15s", "30s", "1min", "5min"], index=1)
 
-    if st.sidebar.button("🔄 Refresh now"):
+    if st.sidebar.button("Refresh now"):
         st.cache_data.clear()
         st.rerun()
 
@@ -341,51 +368,29 @@ def render_export(df: pd.DataFrame):
     # Get all column names from the DataFrame
     all_columns = df.columns.tolist()
 
-    # Define a mapping of internal column names to display names (for better UX)
-    column_display_names = {
-        "job_title": "Title",
-        "company": "Company",
-        "location": "Location",
-        "salary": "Salary",
-        "_best_label": "Best Match",
-        "resume_match_level": "Resume Match Level",
-        "expectations_match_level": "Expectations Match Level",
-        "_parsed_date": "Date",
-        "id": "ID",
-        "resume_match_summary": "Resume Match Summary",
-        "expectations_match_summary": "Expectations Match Summary",
-        "job_url": "URL",
-        "email_subject": "Email Subject",
-        "email_from": "Email From",
-        "job_technology_domains": "Technology Domains",
-        "job_responsibilities_summary": "Responsibilities",
-        "job_requirements_summary": "Requirements",
-        "commute_info": "Commute Info",
-        "status": "Status",
-        "notes": "Notes",
-    }
-
     # Filter columns to only those with display names (optional, for cleaner UI)
-    displayable_columns = [col for col in all_columns if col in column_display_names]
+    displayable_columns = [col for col in all_columns if col in COLUMN_DISPLAY_NAMES]
 
-    # Let the user select columns to export
+    # Let the user select columns to export (using format_func to display displayable names)
     selected_columns = st.sidebar.multiselect(
         "Select columns to export",
         options=displayable_columns,
-        default=list(column_display_names.keys())[:5],  # Default to first 5 columns
-        format_func=lambda x: column_display_names.get(x,x),
+        default=list(COLUMN_DISPLAY_NAMES.keys())[:5],  # Default to first 5 columns
+        format_func=lambda x: COLUMN_DISPLAY_NAMES.get(x, x),
     )
 
-    # Need to clones df in order to modify column names for the CSV
-    df_export = df[selected_columns].rename(columns=column_display_names)
+    # Rename selected columns to displayable names for CSV export
+    df_export = df[selected_columns].rename(columns=COLUMN_DISPLAY_NAMES)
 
-    # Export the renamed DataFrame    
+    # Export the renamed DataFrame
     csv = df_export.to_csv(index=False)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_name = f"mailjobscanner_export_{timestamp}.csv"
 
     st.sidebar.download_button(
         label="📥 Download CSV",
         data=csv,
-        file_name="mailjobscanner_export.csv",
+        file_name=file_name,
         mime="text/csv",
     )
 
@@ -450,6 +455,7 @@ def main():
         render_refresh()
         st.divider()
 
+        st.header("📥" + "\u00a0" * 3 + " Export")
         render_export(df)
 
     st.caption(f"📄 **{len(df)}** proposals match the current filters")
