@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from core.engine import refetch_single_job
+from core.engine import refetch_single_job, fetch_single_job
 from core.llm.llm_client import LlmClient
 from core.storage.repository import JobRepository
 from config import load_config
@@ -337,7 +337,47 @@ def render_refresh():
 def render_export(df: pd.DataFrame):
     if df.empty:
         return
-    csv = df.to_csv(index=False)
+
+    # Get all column names from the DataFrame
+    all_columns = df.columns.tolist()
+
+    # Define a mapping of internal column names to display names (for better UX)
+    column_display_names = {
+        "job_title": "Job Title",
+        "company": "Company",
+        "location": "Location",
+        "salary": "Salary",
+        "_best_label": "Best Match",
+        "resume_match_level": "Resume Match Level",
+        "expectations_match_level": "Expectations Match Level",
+        "_parsed_date": "Date",
+        "id": "ID",
+        "resume_match_summary": "Resume Match Summary",
+        "expectations_match_summary": "Expectations Match Summary",
+        "job_url": "Job URL",
+        "email_subject": "Email Subject",
+        "email_from": "Email From",
+        "job_technology_domains": "Job Technology Domains",
+        "job_responsibilities_summary": "Job Responsibilities Summary",
+        "job_requirements_summary": "Job Requirements Summary",
+        "commute_info": "Commute Info",
+        "status": "Status",
+        "notes": "Notes",
+    }
+
+    # Filter columns to only those with display names (optional, for cleaner UI)
+    displayable_columns = [col for col in all_columns if col in column_display_names]
+
+    # Let the user select columns to export
+    selected_columns = st.sidebar.multiselect(
+        "Select columns to export",
+        options=displayable_columns,
+        default=list(column_display_names.keys())[:5],  # Default to first 5 columns
+    )
+
+    # Export only the selected columns
+    csv = df[selected_columns].to_csv(index=False)
+
     st.sidebar.download_button(
         label="📥 Download CSV",
         data=csv,
@@ -346,19 +386,52 @@ def render_export(df: pd.DataFrame):
     )
 
 
-def main():
-    st.set_page_config(page_title="MailJobScanner Dashboard", layout="wide")
-    st.title("Job Opportunity Dashboard")
-    st.caption("Browse and review analyzed job proposals coming from your job alert emails.")
+@st.dialog("Add Job")
+def _add_job_dialog(config: dict, db_path: Path):
+    with st.form(key="add_job_form"):
+        job_url = st.text_input("Job URL", key="job_url_input")
+        submitted = st.form_submit_button(label="Submit")
 
+    if not submitted:
+        return
+    if not job_url:
+        st.warning("Please enter a job URL.")
+        return
+
+    with st.spinner("Fetching and analyzing job..."):
+        try:
+            llm = LlmClient(config)
+            repo = JobRepository(str(db_path))
+            result = fetch_single_job(job_url, llm, repo, config)
+            repo.close()
+
+            if result.get("error"):
+                st.error(f"Error: {result['error']}")
+                return
+
+            st.cache_data.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+
+
+def main():
     config = load_config()
     db_path = Path(__file__).parent / config["paths"]["db"]
+
+    st.set_page_config(page_title="MailJobScanner Dashboard", layout="wide")
+    st.title("Job Opportunity Dashboard")
+    st.caption(f"Browse and review analyzed job proposals located at {db_path}.")
 
     if not db_path.exists():
         st.warning(f"Database not found at {db_path}. Run the scanner first to populate it.")
         return
 
     df = load_data(str(db_path))
+
+    # Add job button
+    if st.button("Add Job", key="add_job_button"):
+        _add_job_dialog(config, db_path)
 
     with st.sidebar:
         st.header("📊" + "\u00a0" * 3 + "Analysed jobs")
