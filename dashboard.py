@@ -241,8 +241,10 @@ def render_detail(row: pd.Series, db_path: str):
     with left:
         st.subheader(f"[{row['job_title']}]({row['job_url']})")
         st.write(f"**{cname('company')}:** {row['company']}")
-        st.write(f"**{cname('email_subject')}:** {row['email_subject']}")
-        st.write(f"**{cname('email_from')}:** {row['email_from']}")
+        mailfrom = row['email_from']
+        if mailfrom != '':
+            st.write(f"**{cname('email_subject')}:** {row['email_subject']}")
+            st.write(f"**{cname('email_from')}:** {mailfrom}")
         st.write(f"**{cname('_parsed_date')}:** {row['_parsed_date'].strftime('%Y-%m-%d %H:%M')}")
         st.write(f"**{cname('salary')}:** {row.get('salary') or 'N/A'}")
         st.write(f"**{cname('location')}:** {row.get('location') or 'N/A'}")
