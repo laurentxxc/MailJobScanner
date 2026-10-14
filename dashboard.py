@@ -343,7 +343,7 @@ def render_export(df: pd.DataFrame):
 
     # Define a mapping of internal column names to display names (for better UX)
     column_display_names = {
-        "job_title": "Job Title",
+        "job_title": "Title",
         "company": "Company",
         "location": "Location",
         "salary": "Salary",
@@ -354,12 +354,12 @@ def render_export(df: pd.DataFrame):
         "id": "ID",
         "resume_match_summary": "Resume Match Summary",
         "expectations_match_summary": "Expectations Match Summary",
-        "job_url": "Job URL",
+        "job_url": "URL",
         "email_subject": "Email Subject",
         "email_from": "Email From",
-        "job_technology_domains": "Job Technology Domains",
-        "job_responsibilities_summary": "Job Responsibilities Summary",
-        "job_requirements_summary": "Job Requirements Summary",
+        "job_technology_domains": "Technology Domains",
+        "job_responsibilities_summary": "Responsibilities",
+        "job_requirements_summary": "Requirements",
         "commute_info": "Commute Info",
         "status": "Status",
         "notes": "Notes",
@@ -373,10 +373,14 @@ def render_export(df: pd.DataFrame):
         "Select columns to export",
         options=displayable_columns,
         default=list(column_display_names.keys())[:5],  # Default to first 5 columns
+        format_func=lambda x: column_display_names.get(x,x),
     )
 
-    # Export only the selected columns
-    csv = df[selected_columns].to_csv(index=False)
+    # Need to clones df in order to modify column names for the CSV
+    df_export = df[selected_columns].rename(columns=column_display_names)
+
+    # Export the renamed DataFrame    
+    csv = df_export.to_csv(index=False)
 
     st.sidebar.download_button(
         label="📥 Download CSV",
